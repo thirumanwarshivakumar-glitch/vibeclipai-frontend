@@ -15,7 +15,7 @@ export default async function (req) {
         const rawBody = await req.text();
         const signature = req.headers.get('x-razorpay-signature');
 
-        const WEBHOOK_SECRET = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') || Deno.env.get('RAZORPAY_KEY_SECRET') || 'D4wwrd13GI1tmW1y7RqJCRG3';
+        const WEBHOOK_SECRET = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') || Deno.env.get('RAZORPAY_KEY_SECRET') || process.env.RAZORPAY_KEY_SECRET;
 
         // Verify webhook signature
         if (signature) {
