@@ -1,4 +1,4 @@
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || 're_ccSzBrh3_Cpi9tCR7MU89NzS1qbNPDaBu';
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 
 export default async function (req) {
   const corsHeaders = {

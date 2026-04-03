@@ -8,5 +8,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  envPrefix: ['VITE_', 'RAZORPAY_KEY_ID'],
+  build: {
+    rollupOptions: {
+      // Exclude InsForge Edge Functions from the frontend bundle
+      external: (id) => id.includes('/functions/'),
+    },
+  },
 })
