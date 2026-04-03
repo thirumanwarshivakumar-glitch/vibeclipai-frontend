@@ -39,22 +39,89 @@ export default function SignUpPage() {
         }
     };
 
+    const [verificationCode, setVerificationCode] = useState('');
+    const [verifying, setVerifying] = useState(false);
+
+    const handleVerify = async (e) => {
+        e.preventDefault();
+        setVerifying(true);
+        setError('');
+
+        try {
+            const { data, error: verifyError } = await insforge.auth.verifyEmail({
+                email,
+                otp: verificationCode
+            });
+
+            if (verifyError) {
+                throw verifyError;
+            }
+
+            if (data?.accessToken) {
+                window.location.href = '/';
+            }
+        } catch (err) {
+            setError(err.message || 'Failed to verify email');
+        } finally {
+            setVerifying(false);
+        }
+    };
+
     if (success) {
         return (
             <div className="page-wrapper" style={{ paddingTop: '100px', paddingBottom: '100px', minHeight: '100vh', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="container" style={{ maxWidth: '440px' }}>
                     <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
                         <div style={{ width: '64px', height: '64px', background: 'rgba(0, 184, 148, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-                            <span style={{ fontSize: '2rem' }}>✅</span>
+                            <span style={{ fontSize: '2rem' }}>📧</span>
                         </div>
-                        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px' }}>Check your email</h2>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>
-                            We've sent a verification link to <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{email}</span>.
-                            Please check your inbox to activate your account.
+                        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px' }}>Verify your email</h2>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                            We've sent a 6-digit verification code to <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{email}</span>.
+                            Please enter it below to activate your account.
                         </p>
-                        <Link to="/login" className="btn btn-primary" style={{ width: '100%' }}>
-                            Back to login
-                        </Link>
+
+                        <form onSubmit={handleVerify}>
+                            {error && (
+                                <div style={{ backgroundColor: '#fff5f5', borderLeft: '4px solid #f56565', padding: '12px', borderRadius: '8px', marginBottom: '20px', textAlign: 'left' }}>
+                                    <p style={{ fontSize: '0.875rem', color: '#c53030' }}>{error}</p>
+                                </div>
+                            )}
+
+                            <div className="form-group" style={{ textAlign: 'left' }}>
+                                <label className="form-label" htmlFor="code">Verification Code</label>
+                                <input
+                                    id="code"
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="123456"
+                                    value={verificationCode}
+                                    onChange={(e) => setVerificationCode(e.target.value)}
+                                    maxLength={6}
+                                    required
+                                    style={{ letterSpacing: '2px', textAlign: 'center', fontSize: '1.25rem' }}
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                disabled={verifying || verificationCode.length < 6}
+                                style={{ width: '100%', padding: '14px', marginTop: '12px' }}
+                            >
+                                {verifying ? 'Verifying...' : 'Verify Code'}
+                            </button>
+                        </form>
+                        
+                        <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1.5px solid var(--border-color)' }}>
+                            <button 
+                                onClick={() => { setSuccess(false); setVerificationCode(''); setError(''); }}
+                                className="btn"
+                                style={{ width: '100%', padding: '12px', background: 'transparent', color: 'var(--text-secondary)' }}
+                            >
+                                Back to Sign Up
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

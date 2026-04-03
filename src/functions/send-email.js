@@ -1,4 +1,4 @@
-const RESEND_API_KEY = process.env.RESEND_API_KEY || Deno.env.get('RESEND_API_KEY');
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || 're_ccSzBrh3_Cpi9tCR7MU89NzS1qbNPDaBu';
 
 export default async function (req) {
   const corsHeaders = {
@@ -12,7 +12,7 @@ export default async function (req) {
   }
 
   try {
-    const { to, videoUrl, orderId, type } = await req.json();
+    const { to, videoUrl, imageUrl, orderId, type } = await req.json();
 
     if (!to) {
       return new Response(JSON.stringify({ error: 'to email is required' }), {
@@ -21,8 +21,10 @@ export default async function (req) {
       });
     }
 
-    if (type !== 'welcome' && !videoUrl) {
-      return new Response(JSON.stringify({ error: 'videoUrl is required for video delivery email' }), {
+    const mediaLink = videoUrl || imageUrl;
+
+    if (type !== 'welcome' && !mediaLink) {
+      return new Response(JSON.stringify({ error: 'videoUrl or imageUrl is required for delivery email' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -114,11 +116,11 @@ export default async function (req) {
 
                 <!-- CTA Button -->
                 <div style="text-align: center; margin: 28px 0;">
-                  <a href="${videoUrl}"
+                  <a href="${mediaLink}"
                      style="display: inline-block; padding: 14px 36px; background: #6c5ce7;
                             color: white; text-decoration: none; border-radius: 8px;
                             font-weight: 600; font-size: 16px;">
-                    📥 Download Your Video
+                    📥 Download Your Generation
                   </a>
                 </div>
 

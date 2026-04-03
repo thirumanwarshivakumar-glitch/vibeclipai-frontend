@@ -117,9 +117,10 @@ export default function SuccessPage() {
         const poll = async () => {
             try {
                 const result = await getOrderStatus(orderId);
-                if (!result?.order) return;
+                if (!result) return;
 
-                const order = result.order;
+                // Support both direct DB fetch and Edge Function response formats
+                const order = result.order || result;
                 setOrderData(order);
                 const genStatus = order.generation_status || 'pending';
                 const payStatus = order.payment_status || 'pending';
@@ -135,6 +136,19 @@ export default function SuccessPage() {
                         console.error('Fallback confirm failed:', confirmErr);
                     }
                     return; // Wait for next poll to get updated status
+                }
+
+                // Trigger Edge Function polling to update database if it's currently generating
+                if (genStatus === 'generating_image' || genStatus === 'generating') {
+                    try {
+                        import('../lib/api').then(api => {
+                            api.pollGenerationStatus(orderId, genStatus).catch(err => {
+                                console.error('Silent backend poll error:', err);
+                            });
+                        });
+                    } catch (e) {
+                         console.error('Failed to dispatch background poll', e);
+                    }
                 }
 
                 // Map statuses to timeline steps

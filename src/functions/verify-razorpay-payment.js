@@ -32,7 +32,7 @@ export default async function (req) {
 
         if (expectedSignature !== razorpay_signature) {
             console.error('Signature mismatch!');
-            return new Response(JSON.stringify({ error: 'Invalid signature' }), { status: 400, headers: corsHeaders });
+            return new Response(JSON.stringify({ error: `Invalid signature. Secret length: ${KEY_SECRET ? KEY_SECRET.length : 0}` }), { status: 400, headers: corsHeaders });
         }
 
         const client = createClient({
@@ -78,17 +78,20 @@ export default async function (req) {
         // Trigger the asynchronous generation natively
         try {
             if (hasRefImage || isImageOnly) {
-                await client.functions.invoke('generate-image', {
+                const { data, error } = await client.functions.invoke('generate-image', {
                     body: { orderId, action: 'submit' },
                 });
+                if (error) throw new Error('Invoke generate-image failed: ' + error.message);
             } else {
-                await client.functions.invoke('generate-video', {
+                const { data, error } = await client.functions.invoke('generate-video', {
                     body: { orderId, action: 'submit' },
                 });
+                if (error) throw new Error('Invoke generate-video failed: ' + error.message);
             }
         } catch (genErr) {
-            console.error('Failed to trigger generation:', genErr);
-            // Non-fatal, payment was captured successfully
+            const err = genErr instanceof Error ? genErr : new Error(String(genErr));
+            console.error('Failed to trigger generation:', err.message);
+            // Swallowing error - order is already paid, user should be redirected to success page
         }
 
         return new Response(JSON.stringify({ success: true, status: startStatus }), {
@@ -99,6 +102,6 @@ export default async function (req) {
     } catch (err) {
         console.error('Exception caught in verify-razorpay-payment:', String(err));
         const errMsg = err instanceof Error ? err.message : String(err);
-        return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: `Edge Exception: ${errMsg}` }), { status: 500, headers: corsHeaders });
     }
 }

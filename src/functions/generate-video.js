@@ -1,6 +1,6 @@
+// @ts-nocheck
 import { createClient } from 'npm:@insforge/sdk';
 
-const KIE_API_KEY = process.env.KIE_API_KEY || Deno.env.get('KIE_API_KEY');
 const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
 export default async function (req: Request): Promise<Response> {
@@ -12,6 +12,15 @@ export default async function (req: Request): Promise<Response> {
 
     if (req.method === 'OPTIONS') {
         return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
+    if (!KIE_API_KEY) {
+        console.error('CRITICAL ERROR: KIE_API_KEY is null or missing in environment variables');
+        return new Response(JSON.stringify({ error: 'KIE_API_KEY environment variable is not configured on the server.' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
     }
 
     const client = createClient({
@@ -152,7 +161,51 @@ export default async function (req: Request): Promise<Response> {
         // ============ ACTION: POLL — Check kie.ai status ============
         if (action === 'poll') {
             const videoUrlField = order.video_url || '';
+            if (videoUrlField === 'Submitting...') {
+                return new Response(JSON.stringify({ status: 'generating' }), {
+                    status: 200,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+
             if (!videoUrlField.startsWith('kie:')) {
+                // If the field is NULL or EMPTY, it means it never submitted successfully! Resubmit it locally!
+                if (!videoUrlField) {
+                    console.log(`Self-healing: order ${orderId} has no video_url. Resubmitting inline!`);
+                    
+                    await client.database.from('orders').update({ video_url: 'Submitting...', updated_at: new Date().toISOString() }).eq('id', orderId);
+
+                    const referenceImageUrl = order.generated_image_url || order.reference_image_url;
+                    let cleanPrompt = (order.constructed_video_prompt || order.constructed_prompt || 'Create a beautiful invitation video')
+                        .replace(/[\u201C\u201D]/g, '').replace(/[\u2018\u2019]/g, '').replace(/["']/g, '').replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+                    const ratioRaw = order.form_values?.aspect_ratio || '9:16';
+                    
+                    const kieBody = { prompt: cleanPrompt, model: 'veo3_fast', aspect_ratio: ratioRaw.split(' ')[0], enableFallback: false, enableTranslation: false };
+                    if (referenceImageUrl) {
+                        kieBody.imageUrls = [referenceImageUrl];
+                        kieBody.generationType = 'IMAGE_2_VIDEO';
+                    }
+
+                    const generateResponse = await fetch(`${KIE_BASE_URL}/veo/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${KIE_API_KEY}` },
+                        body: JSON.stringify(kieBody),
+                    });
+
+                    if (!generateResponse.ok) {
+                        throw new Error(`Self-heal API fail: ${await generateResponse.text()}`);
+                    }
+                    const generateResult = await generateResponse.json();
+                    const newTaskId = generateResult.data?.taskId || generateResult.taskId;
+
+                    if (newTaskId) {
+                        await client.database.from('orders').update({ video_url: `kie:${newTaskId}`, updated_at: new Date().toISOString() }).eq('id', orderId);
+                        return new Response(JSON.stringify({ status: 'generating' }), { status: 200, headers: corsHeaders });
+                    } else {
+                        throw new Error('Self-heal failed to get newTaskId');
+                    }
+                }
+
                 return new Response(JSON.stringify({
                     status: order.generation_status,
                     videoUrl: order.video_url,
@@ -219,9 +272,23 @@ export default async function (req: Request): Promise<Response> {
                             .eq('id', orderId);
 
                         // Send email
-                        await client.functions.invoke('send-email', {
-                            body: { to: order.email, videoUrl: finalUrl, orderId },
-                        });
+                        try {
+                            const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+                            if (RESEND_API_KEY) {
+                                await fetch('https://api.resend.com/emails', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
+                                    body: JSON.stringify({
+                                        from: 'VibeClipAI <onboarding@resend.dev>',
+                                        to: [order.email],
+                                        subject: '🎬 Your AI Invitation Video is Ready!',
+                                        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2>Your video is Ready! 🎉</h2><p>Your AI-generated creation has been successfully processed and is ready to download.</p><div style="margin: 30px 0;"><a href="${finalUrl}" style="background: #6c5ce7; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">📥 Download Your Generation</a></div></div>`
+                                    }),
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Failed to send email:', e);
+                        }
 
                         return new Response(JSON.stringify({ status: 'completed', videoUrl: finalUrl }), {
                             status: 200,
@@ -238,9 +305,23 @@ export default async function (req: Request): Promise<Response> {
                             })
                             .eq('id', orderId);
 
-                        await client.functions.invoke('send-email', {
-                            body: { to: order.email, videoUrl: resultUrl, orderId },
-                        });
+                        try {
+                            const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+                            if (RESEND_API_KEY) {
+                                await fetch('https://api.resend.com/emails', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
+                                    body: JSON.stringify({
+                                        from: 'VibeClipAI <onboarding@resend.dev>',
+                                        to: [order.email],
+                                        subject: '🎬 Your AI Invitation Video is Ready!',
+                                        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2>Your video is Ready! 🎉</h2><p>Your AI-generated creation has been successfully processed and is ready to download.</p><div style="margin: 30px 0;"><a href="${resultUrl}" style="background: #6c5ce7; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">📥 Download Your Generation</a></div></div>`
+                                    }),
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Failed to send email:', e);
+                        }
 
                         return new Response(JSON.stringify({ status: 'completed', videoUrl: resultUrl }), {
                             status: 200,

@@ -284,6 +284,18 @@ export async function verifyRazorpayPayment(payload) {
     if (error) throw new Error(error.message || 'Failed to verify Razorpay payment');
     return data;
 }
+
+/**
+ * Trigger backend order polling for generation progression
+ */
+export async function pollGenerationStatus(orderId, type) {
+    const funcName = type === 'generating_image' ? 'generate-image' : 'generate-video';
+    const { data, error } = await insforge.functions.invoke(funcName, {
+        body: { orderId, action: 'poll' }
+    });
+    if (error) throw new Error(error.message || `Failed to poll ${funcName}`);
+    return data;
+}
 /**
  * Fetch a specific site configuration value by key
  */

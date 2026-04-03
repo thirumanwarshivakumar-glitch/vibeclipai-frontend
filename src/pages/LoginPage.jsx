@@ -26,7 +26,7 @@ export default function LoginPage() {
             }
 
             if (data?.accessToken) {
-                navigate('/');
+                window.location.href = '/';
             }
         } catch (err) {
             setError(err.message || 'Invalid email or password');

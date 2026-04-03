@@ -72,7 +72,7 @@ export default async function (req) {
 
             const { data: order, error: orderErr } = await client.database
                 .from('orders')
-                .insert(orderInsert)
+                .insert([orderInsert])
                 .select()
                 .single();
 
@@ -247,8 +247,8 @@ export default async function (req) {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     } catch (err) {
-        console.error('Unhandled error:', err);
-        return new Response(JSON.stringify({ error: 'Internal server error', details: String(err) }), {
+        console.error('Unhandled error:', String(err));
+        return new Response(JSON.stringify({ error: 'Internal server error', details: String(err), stack: err instanceof Error ? err.stack : undefined }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

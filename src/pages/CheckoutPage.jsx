@@ -130,7 +130,7 @@ export default function CheckoutPage() {
 
                 // 2. Launch Razorpay Checkout
                 const options = {
-                    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+                    key: import.meta.env.RAZORPAY_KEY_ID,
                     amount: razorpayOrder.amount, // already converted to paise by backend
                     currency: razorpayOrder.currency,
                     name: "VibeClipAI",
@@ -152,7 +152,7 @@ export default function CheckoutPage() {
                             });
                         } catch (err) {
                             console.error('Verification error:', err);
-                            alert('Payment verification failed.');
+                            alert('Payment verification failed: ' + (err.message || 'Unknown error'));
                             setLoading(false);
                             setStatusText('');
                         }

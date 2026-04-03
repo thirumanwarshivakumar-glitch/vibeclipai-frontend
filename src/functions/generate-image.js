@@ -18,6 +18,13 @@ export default async function (req) {
     });
 
     const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
+    if (!KIE_API_KEY) {
+        console.error('CRITICAL ERROR: KIE_API_KEY is null or missing in environment variables');
+        return new Response(JSON.stringify({ error: 'KIE_API_KEY environment variable is not configured on the server.' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+    }
     const KIE_BASE_URL = 'https://api.kie.ai';
 
     let orderId;
@@ -136,11 +143,56 @@ export default async function (req) {
 
         if (action === 'poll') {
             const taskId = order.image_task_id;
-            if (!taskId) {
-                return new Response(JSON.stringify({ error: 'No image task ID found' }), {
-                    status: 400,
+            
+            if (taskId === 'Submitting...') {
+                return new Response(JSON.stringify({ status: 'generating' }), {
+                    status: 200,
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 });
+            }
+
+            // Self-heal: If it's null, the original trigger failed/timed out! Resubmit it inline locally.
+            if (!taskId) {
+                console.log(`Self-healing: order ${orderId} has no image_task_id. Resubmitting inline!`);
+                
+                // Update DB to say we're trying again
+                await client.database
+                    .from('orders')
+                    .update({ image_task_id: 'Submitting...', updated_at: new Date().toISOString() })
+                    .eq('id', orderId);
+
+                // Run submit logic identically down to the API
+                const referenceImageUrl = order.reference_image_url;
+                if (!referenceImageUrl) {
+                    return new Response(JSON.stringify({ error: 'No reference image found' }), { status: 400, headers: corsHeaders });
+                }
+
+                let cleanPrompt = (order.constructed_image_prompt || order.constructed_prompt || 'Enhance the image')
+                    .replace(/[\u201C\u201D]/g, '').replace(/[\u2018\u2019]/g, '').replace(/["']/g, '').replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+                const ratioRaw = order.form_values?.aspect_ratio || '9:16';
+                
+                const submitResponse = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${KIE_API_KEY}` },
+                    body: JSON.stringify({
+                        model: 'nano-banana-2',
+                        input: { prompt: cleanPrompt, image_input: [referenceImageUrl], aspect_ratio: ratioRaw.split(' ')[0], resolution: '1K', output_format: 'jpg', google_search: false }
+                    }),
+                });
+
+                if (!submitResponse.ok) {
+                    throw new Error(`Self-heal API fail: ${await submitResponse.text()}`);
+                }
+                const data = await submitResponse.json();
+                const newTaskId = data?.data?.recordId || data?.data?.taskId || data?.taskId || data?.recordId;
+                
+                if (newTaskId) {
+                    await client.database.from('orders').update({ image_task_id: newTaskId, updated_at: new Date().toISOString() }).eq('id', orderId);
+                    return new Response(JSON.stringify({ status: 'generating' }), { status: 200, headers: corsHeaders });
+                } else {
+                    const errorMsg = data.msg || data.error || data.message || JSON.stringify(data);
+                    throw new Error('KIE API Error: ' + errorMsg);
+                }
             }
 
             const pollResponse = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
@@ -193,14 +245,30 @@ export default async function (req) {
                 // If image only, trigger email immediately
                 if (isImageOnly) {
                     try {
-                        await client.functions.invoke('send-email', {
-                            body: { 
-                                to: order.email, 
-                                videoUrl: imageUrl, 
-                                orderId, 
-                                type: 'image' 
-                            },
-                        });
+                        const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+                        if (RESEND_API_KEY) {
+                            await fetch('https://api.resend.com/emails', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${RESEND_API_KEY}`,
+                                },
+                                body: JSON.stringify({
+                                    from: 'VibeClipAI <onboarding@resend.dev>',
+                                    to: [order.email],
+                                    subject: '🎬 Your AI Invitation Video is Ready!',
+                                    html: `
+                                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                                      <h2>Your generation is Ready! 🎉</h2>
+                                      <p>Your AI-generated creation has been successfully processed and is ready to download.</p>
+                                      <div style="margin: 30px 0;">
+                                        <a href="${imageUrl}" style="background: #6c5ce7; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">📥 Download Your Generation</a>
+                                      </div>
+                                    </div>
+                                    `
+                                }),
+                            });
+                        }
                     } catch (e) {
                         console.error('Failed to trigger send-email from generate-image:', e);
                     }
