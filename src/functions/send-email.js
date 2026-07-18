@@ -1,10 +1,12 @@
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+import { createClient } from 'npm:@insforge/sdk';
 
 export default async function (req) {
+  console.log('[SEND-EMAIL] Function called at', new Date().toISOString(), 'method:', req.method);
+  
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info',
   };
 
   if (req.method === 'OPTIONS') {
@@ -12,7 +14,47 @@ export default async function (req) {
   }
 
   try {
-    const { to, videoUrl, imageUrl, orderId, type } = await req.json();
+    const body = await req.json();
+    let { to, videoUrl, imageUrl, orderId, type } = body;
+    console.log(`[SEND-EMAIL] Invoked with orderId: ${orderId}, to: ${to}, type: ${type}`);
+
+    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+    const BASE_URL = Deno.env.get('INSFORGE_BASE_URL');
+    const ANON_KEY = Deno.env.get('ANON_KEY');
+
+    if (!RESEND_API_KEY) {
+      console.error('[SEND-EMAIL] CRITICAL: RESEND_API_KEY is missing');
+      return new Response(JSON.stringify({ message: 'RESEND_API_KEY missing from server settings', error: 'Missing Key' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const client = createClient({
+      baseUrl: BASE_URL,
+      anonKey: ANON_KEY,
+    });
+
+    if (orderId && (!to || (!videoUrl && !imageUrl))) {
+      console.log(`[SEND-EMAIL] Fetching DB details for order: ${orderId}`);
+      const { data: order, error } = await client.database
+        .from('orders')
+        .select('email, video_url, generated_image_url')
+        .eq('id', orderId)
+        .single();
+      
+      if (error) {
+          console.error('[SEND-EMAIL] DB Fetch Error:', error.message);
+          // Don't throw yet, try to continue if we have partial data
+      }
+      
+      if (order) {
+        to = to || order.email;
+        videoUrl = videoUrl || order.video_url;
+        imageUrl = imageUrl || order.generated_image_url;
+        console.log(`[SEND-EMAIL] DB Result: to=${to}, hasVideo=${!!videoUrl}`);
+      }
+    }
 
     if (!to) {
       return new Response(JSON.stringify({ error: 'to email is required' }), {
@@ -24,7 +66,7 @@ export default async function (req) {
     const mediaLink = videoUrl || imageUrl;
 
     if (type !== 'welcome' && !mediaLink) {
-      return new Response(JSON.stringify({ error: 'videoUrl or imageUrl is required for delivery email' }), {
+      return new Response(JSON.stringify({ error: 'videoUrl or imageUrl is required for delivery email', body: body }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -158,7 +200,7 @@ export default async function (req) {
     const data = await res.json();
 
     if (!res.ok) {
-      return new Response(JSON.stringify({ error: 'Email API error', details: data }), {
+      return new Response(JSON.stringify({ message: 'Resend API rejected the email', details: data }), {
         status: res.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -169,7 +211,8 @@ export default async function (req) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+    console.error('[SEND-EMAIL] Crash:', String(err));
+    return new Response(JSON.stringify({ message: String(err), success: false }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

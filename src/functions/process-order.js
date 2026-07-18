@@ -20,7 +20,8 @@ export default async function (req) {
         // ========== POST: Create a new order ==========
         if (req.method === 'POST') {
             const body = await req.json();
-            const { templateId, email, formValues, paymentMethod, userId, userImageUrl } = body;
+            console.log('Incoming Order Request Body:', JSON.stringify(body, null, 2));
+            const { templateId, email, formValues, paymentMethod, userId, userImageUrl, userVideoUrl } = body;
 
             if (!templateId || !email || !formValues) {
                 return new Response(JSON.stringify({ error: 'Missing required fields: templateId, email, formValues' }), {
@@ -68,6 +69,7 @@ export default async function (req) {
                 constructed_prompt: constructedVideoPrompt,
                 template_type: template.template_type || 'video',
                 reference_image_url: userImageUrl || template.reference_image_url || null,
+                user_video_url: userVideoUrl || null,
             };
 
             const { data: order, error: orderErr } = await client.database
@@ -145,13 +147,31 @@ export default async function (req) {
             if (action === 'confirm-payment') {
                 const { data: order } = await client.database
                     .from('orders')
-                    .select('reference_image_url, template_type')
+                    .select('*, templates(*)')
                     .eq('id', orderId)
                     .single();
 
+                let template = order?.templates;
+                if (Array.isArray(template)) template = template[0];
+                
+                if (!template && order?.template_id) {
+                   const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
+                   template = t;
+                }
+
+                const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                const isKling = aiModel.includes('kling');
+
                 const hasRefImage = !!order?.reference_image_url;
                 const isImageOnly = order?.template_type === 'image';
-                const startStatus = (hasRefImage || isImageOnly) ? 'generating_image' : 'generating';
+                
+                // For Seedance and Kling V2, the uploaded images/videos are used directly for generation.
+                // We do NOT want to pass them through Nano Banana first.
+                const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+
+                // We generate an intermediate image for review if it's an image template,
+                // OR if there's a reference image AND it's not a direct video model
+                const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
                 const { error: updateErr } = await client.database
                     .from('orders')
@@ -160,11 +180,28 @@ export default async function (req) {
 
                 if (updateErr) console.error('Update payment error:', updateErr);
 
+                // Determine Router
+                const getTargetFunction = (type, currentModel) => {
+                    if (type === 'image') {
+                        if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                        return 'generate-image';
+                    }
+                    if (type === 'video') {
+                        if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                        if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                        if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                        return 'generate-video';
+                    }
+                    return 'generate-video';
+                };
+
                 try {
-                    if (hasRefImage || isImageOnly) {
-                        await client.functions.invoke('generate-image', { body: { orderId, action: 'submit' } });
+                    if (startStatus === 'generating_image') {
+                        const targetFunc = getTargetFunction('image', aiModel);
+                        await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit' } });
                     } else {
-                        await client.functions.invoke('generate-video', { body: { orderId, action: 'submit' } });
+                        const targetFunc = getTargetFunction('video', aiModel);
+                        await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit' } });
                     }
                 } catch (e) {
                     console.error('Failed to trigger generation:', e);
@@ -180,10 +217,53 @@ export default async function (req) {
                 });
             }
 
+            if (action === 'poll') {
+                const { data: order } = await client.database
+                    .from('orders')
+                    .select('*, templates(*)')
+                    .eq('id', orderId)
+                    .single();
+
+                let template = order?.templates;
+                if (Array.isArray(template)) template = template[0];
+                const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+
+                const getTargetFunction = (type, currentModel) => {
+                    if (type === 'image') {
+                        if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                        return 'generate-image'; 
+                    } else {
+                        if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                        if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                        if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                        return 'generate-video';
+                    }
+                };
+
+                try {
+                    const type = order.generation_status === 'generating_image' ? 'image' : 'video';
+                    const targetFunc = getTargetFunction(type, aiModel);
+                    
+                    const { data, error } = await client.functions.invoke(targetFunc, { body: { orderId, action: 'poll' } });
+                    if (error) throw error;
+
+                    return new Response(JSON.stringify(data), {
+                        status: 200,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    });
+                } catch (e) {
+                    console.error('Failed to poll generation:', e);
+                    return new Response(JSON.stringify({ error: 'Failed to route poll request', details: (e as Error).message }), {
+                        status: 500,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    });
+                }
+            }
+
             if (action === 'confirm-image') {
                 const { data: order } = await client.database
                     .from('orders')
-                    .select('template_type, generated_image_url')
+                    .select('template_type, generated_image_url, templates(*)')
                     .eq('id', orderId)
                     .single();
 
@@ -202,7 +282,17 @@ export default async function (req) {
 
                     if (!isImageOnly) {
                         try {
-                            await client.functions.invoke('generate-video', { body: { orderId, action: 'submit' } });
+                            const template = Array.isArray(order?.templates) ? order.templates[0] : order?.templates;
+                            const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                            const getTargetFunction = (currentModel) => {
+                                if (!currentModel || currentModel === 'veo_3_1' || currentModel === 'nano_banana_pro' || currentModel === 'kling_3_0') return 'generate-video';
+                                if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                                if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                                if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                                return 'generate-video';
+                            };
+                            const targetFunc = getTargetFunction(aiModel);
+                            await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit' } });
                         } catch (e) {
                             console.error('Failed to trigger video generation:', e);
                         }
@@ -224,7 +314,17 @@ export default async function (req) {
                         .eq('id', orderId);
 
                     try {
-                        await client.functions.invoke('generate-image', { body: { orderId, action: 'submit', force: true } });
+                        const template = Array.isArray(order?.templates) ? order.templates[0] : order?.templates;
+                        const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                        const getTargetFunction = (currentModel) => {
+                            if (!currentModel || currentModel === 'veo_3_1' || currentModel === 'nano_banana_pro' || currentModel === 'kling_3_0') return 'generate-image';
+                            if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                            // If Veo needs to regenerate its image
+                            if (currentModel === 'veo_3_1_v2') return 'generate-image'; // Or keep it simple since we didn't make a separate image generator for veo yet, but let's route to legacy generate-image which handles prompts for Veo intermediate.
+                            return 'generate-image';
+                        };
+                        const targetFunc = getTargetFunction(aiModel);
+                        await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit', force: true } });
                     } catch (e) {
                         console.error('Failed to trigger image regeneration:', e);
                     }

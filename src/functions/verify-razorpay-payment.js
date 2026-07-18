@@ -36,19 +36,20 @@ export default async function (req) {
         }
 
         const client = createClient({
-            baseUrl: Deno.env.get('INSFORGE_BASE_URL'),
+            baseUrl: Deno.env.get('INSFORGE_BASE_URL') || Deno.env.get('INSFORGE_INTERNAL_URL'),
             anonKey: Deno.env.get('ANON_KEY'),
         });
 
         // Confirm Payment Logic directly instead of calling process-order to avoid nested invocations
         const { data: order, error: fetchErr } = await client.database
             .from('orders')
-            .select('reference_image_url, template_type, payment_status')
+            .select('*, templates(*)')
             .eq('id', orderId)
             .single();
 
         if (fetchErr) {
-            throw new Error(`Failed to fetch order: ${fetchErr.message}`);
+            console.error("DB Fetch Error Details:", JSON.stringify(fetchErr));
+            throw new Error(`Failed to fetch order: ${fetchErr.message} (status: ${fetchErr.statusCode || fetchErr.status}, details: ${JSON.stringify(fetchErr)})`);
         }
 
         if (order?.payment_status === 'paid') {
@@ -58,9 +59,25 @@ export default async function (req) {
             });
         }
 
+        let template = order?.templates;
+        if (Array.isArray(template)) template = template[0];
+        
+        if (!template && order?.template_id) {
+           const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
+           template = t;
+        }
+
+        const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+        const isKling = aiModel.includes('kling');
+
         const hasRefImage = !!order?.reference_image_url;
         const isImageOnly = order?.template_type === 'image';
-        const startStatus = (hasRefImage || isImageOnly) ? 'generating_image' : 'generating';
+        
+        // For Seedance and Kling V2, the uploaded images/videos are used directly for generation.
+        // We do NOT want to pass them through Nano Banana first.
+        const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+
+        const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
         const { error: updateErr } = await client.database
             .from('orders')
@@ -75,22 +92,46 @@ export default async function (req) {
             throw new Error(`Failed to update order: ${updateErr.message}`);
         }
 
+        // Determine Router (matches process-order.js)
+        const getTargetFunction = (type, currentModel) => {
+            if (type === 'image') {
+                if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                return 'generate-image';
+            }
+            if (type === 'video') {
+                if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                return 'generate-video';
+            }
+            return 'generate-video';
+        };
+
         // Trigger the asynchronous generation natively
         try {
-            if (hasRefImage || isImageOnly) {
-                const { data, error } = await client.functions.invoke('generate-image', {
-                    body: { orderId, action: 'submit' },
+            console.log(`[VERIFY-PAY] Order ${orderId} marked paid. startStatus: ${startStatus}. isKling: ${isKling}`);
+            
+            const invokeBody = { orderId, action: 'submit' };
+            console.log(`[VERIFY-PAY] Invoking generation with body:`, JSON.stringify(invokeBody));
+
+            if (startStatus === 'generating_image') {
+                const targetFunc = getTargetFunction('image', aiModel);
+                const { data, error } = await client.functions.invoke(targetFunc, {
+                    body: invokeBody,
                 });
-                if (error) throw new Error('Invoke generate-image failed: ' + error.message);
+                console.log(`[VERIFY-PAY] ${targetFunc} response:`, { data, error });
+                if (error) throw new Error(`Invoke ${targetFunc} failed: ` + (error.message || JSON.stringify(error)));
             } else {
-                const { data, error } = await client.functions.invoke('generate-video', {
-                    body: { orderId, action: 'submit' },
+                const targetFunc = getTargetFunction('video', aiModel);
+                const { data, error } = await client.functions.invoke(targetFunc, {
+                    body: invokeBody,
                 });
-                if (error) throw new Error('Invoke generate-video failed: ' + error.message);
+                console.log(`[VERIFY-PAY] ${targetFunc} response:`, { data, error });
+                if (error) throw new Error(`Invoke ${targetFunc} failed: ` + (error.message || JSON.stringify(error)));
             }
         } catch (genErr) {
             const err = genErr instanceof Error ? genErr : new Error(String(genErr));
-            console.error('Failed to trigger generation:', err.message);
+            console.error('[VERIFY-PAY] CRITICAL: Failed to trigger generation pipeline:', err.message);
             // Swallowing error - order is already paid, user should be redirected to success page
         }
 

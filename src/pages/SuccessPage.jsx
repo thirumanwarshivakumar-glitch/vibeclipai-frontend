@@ -28,6 +28,8 @@ const imageOnlySteps = [
 const statusToStepDefault = {
     pending: -1,
     paid: 0,
+    generating_image: 1,           // Fallback if it goes here for video
+    awaiting_image_confirmation: 1, // Fallback
     generating: 1,
     uploading: 2,
     completed: 3,
@@ -85,6 +87,9 @@ export default function SuccessPage() {
         ''
     ).trim().toLowerCase();
     
+    // Check if it's a Kling template
+    const isKling = (stateTemplate?.ai_model || orderData?.ai_model || stateTemplate?.name || orderData?.template_id || '').toLowerCase().includes('kling');
+
     // Safety check: some parts of the app might use tags to identify it as an image
     const hasImageTag = stateTemplate?.tags?.some(t => t.toLowerCase().includes('image')) || 
                         orderData?.template_id === 'some-known-image-template-id'; // Fallback if needed
@@ -92,10 +97,11 @@ export default function SuccessPage() {
     const isImageOnlyTemplate = rawType === 'image' || rawType === 'photo' || hasImageTag;
     
     // hasRefImage is for video templates that have a reference photo
-    const hasRefImage = !!(orderData?.reference_image_url || stateTemplate?.reference_image_url);
+    // IMPORTANT: Kling Motion Control ALWAYS behaves like a reference photo template (even if we skip review)
+    const hasRefImage = !!(orderData?.reference_image_url || stateTemplate?.reference_image_url || orderData?.user_image_url || isKling);
     
     // If it's an image template, always use imageOnlySteps.
-    // If it's a video template with a ref image, use imageSteps (includes review).
+    // If it's a video template with a ref image (or Kling), use imageSteps (includes review).
     // Otherwise use defaultSteps.
     const activeSteps = isImageOnlyTemplate ? imageOnlySteps : (hasRefImage ? imageSteps : defaultSteps);
 
@@ -230,7 +236,7 @@ export default function SuccessPage() {
 
     return (
         <div className="page" id="success-page">
-            <div className="success-page-content">
+            <div className="success-page-content glass-panel" style={{ borderRadius: 'var(--radius-xl)' }}>
                 <div className="success-icon animate-fade-in-up">🎉</div>
                 <h1 className="success-title animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     {genFailed ? 'Generation Failed' : isCompleted

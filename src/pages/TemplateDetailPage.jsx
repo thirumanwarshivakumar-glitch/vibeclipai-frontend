@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Play, Upload, X, Check, Image as ImageIcon, Video, Sparkles } from 'lucide-react';
 import FormRenderer from '../components/FormRenderer';
 import { fetchTemplateById } from '../lib/api';
 
@@ -10,10 +12,19 @@ export default function TemplateDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [formValues, setFormValues] = useState({});
-    const [userImageFile, setUserImageFile] = useState(null);
-    const [userImagePreview, setUserImagePreview] = useState('');
+    
+    const [userImageFiles, setUserImageFiles] = useState([]);
+    const [userImagePreviews, setUserImagePreviews] = useState([]);
     const [imageUploadError, setImageUploadError] = useState('');
     const userImageRef = useRef(null);
+
+    const [userVideoFile, setUserVideoFile] = useState(null);
+    const [userVideoPreview, setUserVideoPreview] = useState('');
+    const [videoUploadError, setVideoUploadError] = useState('');
+    const userVideoRef = useRef(null);
+
+    const videoPreviewRef = useRef(null);
+    const [isPlaying, setIsPlaying] = useState(true);
 
     useEffect(() => {
         setLoading(true);
@@ -25,10 +36,10 @@ export default function TemplateDetailPage() {
 
     if (loading) {
         return (
-            <div className="page">
-                <div className="container" style={{ padding: '120px 24px', textAlign: 'center' }}>
-                    <div className="spinner" style={{ margin: '0 auto 16px', borderColor: 'var(--border-color)', borderTopColor: 'var(--accent-primary)', width: 32, height: 32 }}></div>
-                    <p style={{ color: 'var(--text-tertiary)' }}>Loading template...</p>
+            <div className="min-h-screen pt-24 pb-12 flex items-center justify-center">
+                <div className="flex flex-col items-center">
+                    <div className="spinner mb-4" style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#7C3AED', width: 48, height: 48, borderWidth: 4, borderStyle: 'solid', borderRadius: '50%' }}></div>
+                    <p className="text-zinc-400 font-medium tracking-wide">Loading template...</p>
                 </div>
             </div>
         );
@@ -36,24 +47,30 @@ export default function TemplateDetailPage() {
 
     if (error || !template) {
         return (
-            <div className="page">
-                <div className="container" style={{ padding: '120px 24px', textAlign: 'center' }}>
-                    <h1 style={{ fontSize: '2rem', marginBottom: 16 }}>Template Not Found</h1>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{error || "The template you're looking for doesn't exist."}</p>
-                    <Link to="/" className="btn btn-primary">Back to Home</Link>
+            <div className="min-h-screen pt-24 pb-12 flex items-center justify-center">
+                <div className="glass-panel p-10 rounded-3xl text-center max-w-md w-full">
+                    <h1 className="text-2xl font-bold text-white mb-4">Template Not Found</h1>
+                    <p className="text-zinc-400 mb-8">{error || "The template you're looking for doesn't exist."}</p>
+                    <Link to="/">
+                        <button className="w-full glass-button px-6 py-3 rounded-full font-semibold text-white">Back to Home</button>
+                    </Link>
                 </div>
             </div>
         );
     }
 
-    // DB returns snake_case: input_schema, prompt_skeleton
     const isImage = template.template_type === 'image' || template.templateType === 'image';
-    const requiresUserImage = !!(template?.allow_user_image_upload);
+    const isKlingMotionControl = 
+        template?.ai_model?.toLowerCase().includes('kling') || 
+        template?.aiModel?.toLowerCase().includes('kling') ||
+        template?.name?.toLowerCase().includes('kling') ||
+        template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa';
+
+    const requiresUserImage = !!(template?.allow_user_image_upload) || isKlingMotionControl;
+    const requiresUserVideo = !!(template?.allow_user_video_upload);
     const tags = template.tags || [];
     const inputSchema = template.input_schema || [];
-    const tagIcons = { 'Wedding': '💍', 'Birthday': '🎂' };
-    const matchedTag = tags.find((t) => tagIcons[t]);
-    const icon = tagIcons[matchedTag] || (isImage ? '🖼️' : '🎬');
+    const maxUploads = template?.max_user_uploads || template?.maxUserUploads || 1;
 
     const includesMap = {
         'Wedding': [
@@ -73,6 +90,11 @@ export default function TemplateDetailPage() {
             'HD 1080p quality video output',
         ],
     };
+    
+    const tagIcons = { 'Wedding': '💍', 'Birthday': '🎂' };
+    const matchedTag = tags.find((t) => tagIcons[t]);
+    const icon = tagIcons[matchedTag] || (isImage ? '🖼️' : '🎬');
+    
     const includes = includesMap[matchedTag] || [
         isImage ? 'AI-generated image content' : 'AI-generated video content',
         'Custom text and details',
@@ -81,19 +103,50 @@ export default function TemplateDetailPage() {
     ];
 
     const handleUserImageSelect = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        
+        let validFiles = [];
+        let validPreviews = [];
+        let errors = [];
+
+        for (const file of files) {
+            if (!file.type.startsWith('image/')) {
+                errors.push('Please select a JPEG, PNG, or JPG image.');
+                continue;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                errors.push('Images must be under 10MB.');
+                continue;
+            }
+            validFiles.push(file);
+            validPreviews.push(URL.createObjectURL(file));
+        }
+
+        if (errors.length > 0) setImageUploadError(errors[0]);
+        else setImageUploadError('');
+
+        setUserImageFiles(prev => [...prev, ...validFiles].slice(0, maxUploads));
+        setUserImagePreviews(prev => [...prev, ...validPreviews].slice(0, maxUploads));
+        
+        if (userImageRef.current) userImageRef.current.value = '';
+    };
+
+    const handleUserVideoSelect = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            setImageUploadError('Please select a JPEG, PNG, or WebP image.');
+        if (!file.type.startsWith('video/')) {
+            setVideoUploadError('Please select a valid video file (MP4, MOV).');
             return;
         }
-        if (file.size > 10 * 1024 * 1024) {
-            setImageUploadError('Image must be under 10MB.');
+        if (file.size > 100 * 1024 * 1024) {
+            setVideoUploadError('Video must be under 100MB.');
             return;
         }
-        setImageUploadError('');
-        setUserImageFile(file);
-        setUserImagePreview(URL.createObjectURL(file));
+        setVideoUploadError('');
+        setUserVideoFile(file);
+        setUserVideoPreview(URL.createObjectURL(file));
+        if (userVideoRef.current) userVideoRef.current.value = '';
     };
 
     const handleContinue = () => {
@@ -106,147 +159,257 @@ export default function TemplateDetailPage() {
             return;
         }
 
-        if (requiresUserImage && !userImageFile) {
+        if (requiresUserImage && userImageFiles.length === 0) {
             alert('Please upload your reference photo to proceed.');
+            return;
+        }
+        if (requiresUserVideo && !userVideoFile) {
+            alert('Please upload your motion video to proceed.');
             return;
         }
 
         navigate('/checkout', {
-            state: { template, formValues, userImageFile, userImagePreview },
+            state: { template, formValues, userImageFiles, userImagePreviews, userVideoFile, userVideoPreview },
         });
     };
 
-    return (
-        <div className="page" id="template-detail-page">
-            <div className="container">
-                <div className="page-header">
-                    <div className="breadcrumb">
-                        <Link to="/">Home</Link>
-                        <span>/</span>
-                        <Link to="/#templates">Templates</Link>
-                        <span>/</span>
-                        <span>{template.name}</span>
-                    </div>
-                    <h1 className="page-title">{template.name}</h1>
-                    <p className="page-subtitle">{template.description}</p>
-                </div>
+    const toggleVideoPlayback = () => {
+        if (!videoPreviewRef.current) return;
+        if (isPlaying) {
+            videoPreviewRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            videoPreviewRef.current.play();
+            setIsPlaying(true);
+        }
+    };
 
-                <div className="template-detail-grid">
-                    {/* Left: Preview */}
-                    <div className="template-preview-card">
-                        <div className="template-preview-visual" style={{
-                            background: template.preview_video_url ? '#000' : undefined,
-                            padding: 0,
-                            aspectRatio: isImage ? '4/5' : (tags.includes('9:16') ? '9/16' : '16/9')
-                        }}>
+    return (
+        <div className="w-full min-h-screen pt-24 pb-24 text-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                
+                {/* Breadcrumbs */}
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 text-sm text-zinc-400 mb-8"
+                >
+                    <Link to="/" className="hover:text-white transition-colors">Home</Link>
+                    <span>/</span>
+                    <Link to="/templates" className="hover:text-white transition-colors">Templates</Link>
+                    <span>/</span>
+                    <span className="text-white truncate">{template.name}</span>
+                </motion.div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+                    
+                    {/* LEFT: PREVIEW & DETAILS */}
+                    <motion.div 
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="lg:col-span-7 space-y-8 sticky top-28"
+                    >
+                        {/* Media Preview */}
+                        <div className="glass-panel p-2 rounded-[2rem] overflow-hidden relative shadow-2xl group" style={{ aspectRatio: isImage ? '4/5' : (tags.includes('9:16') ? '9/16' : '16/9') }}>
                             {template.preview_video_url ? (
                                 template.preview_video_url.match(/\.(mp4|webm|mov|avi|m4v|ogv)(\?.*)?$/i) ? (
-                                    <video
-                                        src={template.preview_video_url}
-                                        controls
-                                        autoPlay
-                                        muted
-                                        loop
-                                        playsInline
-                                        preload="auto"
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                    />
+                                    <>
+                                        <video
+                                            ref={videoPreviewRef}
+                                            src={template.preview_video_url}
+                                            autoPlay
+                                            muted
+                                            loop
+                                            playsInline
+                                            className="w-full h-full object-cover rounded-[1.75rem]"
+                                        />
+                                        <button 
+                                            onClick={toggleVideoPlayback}
+                                            className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                                                {!isPlaying ? <Play className="w-8 h-8 fill-white ml-1" /> : <div className="w-6 h-6 border-l-4 border-r-4 border-white"></div>}
+                                            </div>
+                                        </button>
+                                    </>
                                 ) : (
                                     <img 
                                         src={template.preview_video_url} 
                                         alt={template.name}
-                                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} 
+                                        className="w-full h-full object-contain rounded-[1.75rem]" 
                                     />
                                 )
                             ) : (
-                                <span style={{ fontSize: '4rem', position: 'relative', zIndex: 1 }}>{icon}</span>
+                                <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-[1.75rem]">
+                                    <span className="text-6xl">{icon}</span>
+                                </div>
                             )}
                         </div>
-                        <div className="template-preview-info">
-                            <h3 className="template-preview-title">{template.name}</h3>
-                            <p className="template-preview-desc">{template.description}</p>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+
+                        {/* Details */}
+                        <div>
+                            <h1 className="text-3xl sm:text-4xl font-bold mb-4">{template.name}</h1>
+                            <p className="text-zinc-300 leading-relaxed mb-6">{template.description}</p>
+                            
+                            <div className="flex flex-wrap gap-2 mb-8">
                                 {tags.map((tag) => (
-                                    <span className="tag" key={tag}>{tag}</span>
+                                    <span key={tag} className="px-3 py-1 rounded-full bg-white/10 text-xs font-semibold text-white/90 border border-white/10">
+                                        {tag}
+                                    </span>
                                 ))}
                             </div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: 16 }}>
-                                ₹{Number(template.price).toFixed(2)}
+
+                            <div className="glass-panel p-6 rounded-2xl">
+                                <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-[#EC4899]" />
+                                    What's included:
+                                </h4>
+                                <ul className="space-y-3">
+                                    {includes.map((item, i) => (
+                                        <li key={i} className="flex items-start gap-3 text-sm text-zinc-300">
+                                            <Check className="w-5 h-5 text-green-400 shrink-0" />
+                                            <span>{item}</span>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
-                            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-primary)' }}>What's included:</h4>
-                            <ul className="template-includes">
-                                {includes.map((item, i) => (
-                                    <li key={i}>{item}</li>
-                                ))}
-                            </ul>
                         </div>
-                    </div>
+                    </motion.div>
 
-                    {/* Right: Form */}
-                    <div className="template-form-card">
-                        <h3 className="template-form-title">✏️ {isImage ? 'Personalize Your Image' : 'Personalize Your Video'}</h3>
-
-                        {/* User Reference Image Upload (when template requires it) */}
-                        {requiresUserImage && (
-                            <div className="form-group" style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid var(--border-color)' }}>
-                                <label className="form-label">
-                                    📸 Your Reference Photo <span className="required">*</span>
-                                </label>
-                                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                                    This photo will be used to personalize your {isImage ? 'image' : 'video'}. Please upload a clear photo.
-                                </p>
-
-                                {userImagePreview ? (
-                                    <div style={{ position: 'relative', maxWidth: 160, marginBottom: 8 }}>
-                                        <img
-                                            src={userImagePreview}
-                                            alt="Your uploaded photo"
-                                            style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '2px solid var(--accent-primary)', display: 'block' }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => { setUserImageFile(null); setUserImagePreview(''); }}
-                                            style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,53,69,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                        >✕</button>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--success, #28a745)', marginTop: 6, fontWeight: 600 }}>✅ Photo ready</p>
+                    {/* RIGHT: FORM */}
+                    <motion.div 
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="lg:col-span-5"
+                    >
+                        <div className="glass-panel p-6 sm:p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-[#7C3AED]/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+                            
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
+                                    <h3 className="text-xl sm:text-2xl font-bold">
+                                        Personalize {isImage ? 'Image' : 'Video'}
+                                    </h3>
+                                    <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#EC4899]">
+                                        ₹{Number(template.price).toFixed(2)}
                                     </div>
-                                ) : (
-                                    <div
-                                        onClick={() => userImageRef.current?.click()}
-                                        style={{ border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '20px 16px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg-secondary)', transition: 'all 0.2s' }}
-                                    >
-                                        <div style={{ fontSize: '2rem', marginBottom: 8 }}>🤳</div>
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, fontWeight: 600 }}>Click to upload photo</p>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: 4 }}>JPG, PNG, WebP — Max 10MB</p>
+                                </div>
+
+                                <div className="space-y-8">
+                                    {/* Image Upload */}
+                                    {requiresUserImage && (
+                                        <div>
+                                            <label className="flex items-center gap-3 text-sm font-semibold mb-2">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] flex items-center justify-center text-xs">
+                                                    {requiresUserVideo ? '2' : '1'}
+                                                </div>
+                                                Your Reference Photo <span className="text-[#EC4899]">*</span>
+                                            </label>
+                                            <p className="text-xs text-zinc-400 mb-4 ml-9">
+                                                Upload a clear photo for {isImage ? 'image' : 'video'} personalization.
+                                            </p>
+
+                                            <div className="ml-9">
+                                                {userImagePreviews.length > 0 && (
+                                                    <div className="flex gap-3 flex-wrap mb-4">
+                                                        {userImagePreviews.map((preview, idx) => (
+                                                            <div key={idx} className="relative w-20 h-20 group">
+                                                                <img src={preview} alt="Upload" className="w-full h-full object-cover rounded-xl border-2 border-[#7C3AED]" />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setUserImageFiles(prev => prev.filter((_, i) => i !== idx));
+                                                                        setUserImagePreviews(prev => prev.filter((_, i) => i !== idx));
+                                                                    }}
+                                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {userImageFiles.length < maxUploads && (
+                                                    <div 
+                                                        onClick={() => userImageRef.current?.click()}
+                                                        className="border-2 border-dashed border-white/20 hover:border-[#7C3AED]/50 rounded-xl p-6 text-center cursor-pointer transition-colors bg-white/5"
+                                                    >
+                                                        <Upload className="w-6 h-6 mx-auto mb-2 text-zinc-400" />
+                                                        <p className="text-sm font-semibold">{userImageFiles.length > 0 ? 'Add another photo' : 'Upload photo'}</p>
+                                                        <p className="text-xs text-zinc-500 mt-1">JPG, PNG (Max 10MB)</p>
+                                                    </div>
+                                                )}
+                                                <input ref={userImageRef} type="file" accept="image/jpeg,image/png,image/webp" multiple={maxUploads > 1} className="hidden" onChange={handleUserImageSelect} />
+                                                {imageUploadError && <p className="text-xs text-red-400 mt-2">{imageUploadError}</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Video Upload */}
+                                    {requiresUserVideo && (
+                                        <div>
+                                            <label className="flex items-center gap-3 text-sm font-semibold mb-2">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] flex items-center justify-center text-xs">
+                                                    {requiresUserImage ? '2' : '1'}
+                                                </div>
+                                                Motion Video <span className="text-[#EC4899]">*</span>
+                                            </label>
+                                            <p className="text-xs text-zinc-400 mb-4 ml-9">Upload a reference motion video.</p>
+
+                                            <div className="ml-9">
+                                                {userVideoPreview ? (
+                                                    <div className="relative mb-4">
+                                                        <video src={userVideoPreview} controls className="w-full rounded-xl border-2 border-[#7C3AED]" />
+                                                        <button
+                                                            onClick={() => { setUserVideoFile(null); setUserVideoPreview(''); }}
+                                                            className="absolute top-2 right-2 bg-red-500/80 backdrop-blur-md text-white rounded-full p-2 shadow-lg"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        onClick={() => userVideoRef.current?.click()}
+                                                        className="border-2 border-dashed border-white/20 hover:border-[#7C3AED]/50 rounded-xl p-6 text-center cursor-pointer transition-colors bg-white/5"
+                                                    >
+                                                        <Video className="w-6 h-6 mx-auto mb-2 text-zinc-400" />
+                                                        <p className="text-sm font-semibold">Upload motion video</p>
+                                                        <p className="text-xs text-zinc-500 mt-1">MP4, MOV (Max 100MB)</p>
+                                                    </div>
+                                                )}
+                                                <input ref={userVideoRef} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleUserVideoSelect} />
+                                                {videoUploadError && <p className="text-xs text-red-400 mt-2">{videoUploadError}</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Dynamic Inputs */}
+                                    {inputSchema.length > 0 && (
+                                        <div className={requiresUserImage || requiresUserVideo ? "pt-6 border-t border-white/10" : ""}>
+                                            <FormRenderer schema={inputSchema} values={formValues} onChange={setFormValues} />
+                                        </div>
+                                    )}
+
+                                    {/* Action Buttons */}
+                                    <div className="pt-8 border-t border-white/10 flex flex-col gap-4">
+                                        <motion.button 
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={handleContinue}
+                                            className="w-full py-4 rounded-xl font-bold text-white shadow-lg shadow-[#7C3AED]/20 bg-gradient-to-r from-[#7C3AED] to-[#EC4899]"
+                                        >
+                                            Continue to Payment
+                                        </motion.button>
+                                        <Link to="/templates" className="w-full">
+                                            <button className="w-full py-4 rounded-xl font-medium text-zinc-300 glass-button">
+                                                Explore More Templates
+                                            </button>
+                                        </Link>
                                     </div>
-                                )}
-
-                                <input
-                                    ref={userImageRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    style={{ display: 'none' }}
-                                    onChange={handleUserImageSelect}
-                                />
-
-                                {imageUploadError && (
-                                    <p style={{ color: 'var(--danger)', fontSize: '0.82rem', marginTop: 8 }}>⚠️ {imageUploadError}</p>
-                                )}
+                                </div>
                             </div>
-                        )}
-
-                        <FormRenderer
-                            schema={inputSchema}
-                            values={formValues}
-                            onChange={setFormValues}
-                        />
-                        <div className="template-form-buttons">
-                            <Link to="/" className="btn btn-outline" style={{ flex: '0 0 auto' }}>← Back to Templates</Link>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleContinue}>
-                                Continue to Payment →
-                            </button>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
         </div>

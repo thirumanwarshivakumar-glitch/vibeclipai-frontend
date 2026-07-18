@@ -52,6 +52,7 @@ export async function fetchTemplateById(id) {
  * Update template status (e.g., active/disabled)
  */
 export async function toggleTemplateStatus(id, newStatus) {
+    await insforge.auth.getCurrentSession();
     const { data, error } = await insforge.database
         .from('templates')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -67,6 +68,7 @@ export async function toggleTemplateStatus(id, newStatus) {
  * Create a new template record
  */
 export async function createTemplate(templateData) {
+    await insforge.auth.getCurrentSession(); // Ensure session is fresh before saving
     const { data, error } = await insforge.database
         .from('templates')
         .insert([{
@@ -74,12 +76,28 @@ export async function createTemplate(templateData) {
             description: templateData.description,
             tags: templateData.tags || [],
             price: templateData.price || 199,
-            image_prompt_skeleton: templateData.imagePromptSkeleton,
-            video_prompt_skeleton: templateData.videoPromptSkeleton,
-            input_schema: templateData.inputSchema || [],
+            image_prompt_skeleton: templateData.imagePromptSkeleton || templateData.image_prompt_skeleton,
+            video_prompt_skeleton: templateData.videoPromptSkeleton || templateData.video_prompt_skeleton,
+            input_schema: templateData.inputSchema || templateData.input_schema || [],
             status: templateData.status || 'draft',
-            reference_image_url: templateData.referenceImageUrl || '',
-            template_type: templateData.templateType || 'video'
+            reference_image_url: templateData.referenceImageUrl || templateData.reference_image_url || '',
+            template_type: templateData.templateType || templateData.template_type || 'video',
+            // New fields
+            ai_model: templateData.ai_model || 'midjourney',
+            generation_mode: templateData.generation_mode || 'text-to-video',
+            default_aspect_ratio: templateData.default_aspect_ratio || '16:9',
+            reference_images: templateData.reference_images || '[]',
+            max_user_uploads: templateData.max_user_uploads || 1,
+            music_prompt: templateData.music_prompt || '',
+            negative_prompt: templateData.negative_prompt || '',
+            quality: templateData.quality || 'high',
+            video_duration: templateData.video_duration || '5',
+            video_fps: templateData.video_fps || '24',
+            seed: templateData.seed || '',
+            currency: templateData.currency || 'INR',
+            allow_user_image_upload: templateData.allow_user_image_upload !== undefined ? templateData.allow_user_image_upload : false,
+            allow_user_video_upload: templateData.allow_user_video_upload !== undefined ? templateData.allow_user_video_upload : false,
+            reference_video_url: templateData.reference_video_url || '',
         }])
         .select()
         .single();
@@ -92,6 +110,7 @@ export async function createTemplate(templateData) {
  * Update an existing template record (supports partial updates)
  */
 export async function updateTemplate(id, templateData) {
+    await insforge.auth.getCurrentSession();
     // Map camelCase to snake_case if necessary, otherwise pass through
     const updatePayload = { ...templateData, updated_at: new Date().toISOString() };
     
@@ -102,6 +121,37 @@ export async function updateTemplate(id, templateData) {
     if (templateData.inputSchema !== undefined) updatePayload.input_schema = templateData.inputSchema;
     if (templateData.referenceImageUrl !== undefined) updatePayload.reference_image_url = templateData.referenceImageUrl;
     if (templateData.templateType !== undefined) updatePayload.template_type = templateData.templateType;
+
+    // New fields (already snake_case from TemplateEditor, but ensure they pass through)
+    if (templateData.ai_model !== undefined) updatePayload.ai_model = templateData.ai_model;
+    if (templateData.generation_mode !== undefined) updatePayload.generation_mode = templateData.generation_mode;
+    if (templateData.default_aspect_ratio !== undefined) updatePayload.default_aspect_ratio = templateData.default_aspect_ratio;
+    if (templateData.reference_images !== undefined) updatePayload.reference_images = templateData.reference_images;
+    if (templateData.max_user_uploads !== undefined) updatePayload.max_user_uploads = templateData.max_user_uploads;
+    if (templateData.music_prompt !== undefined) updatePayload.music_prompt = templateData.music_prompt;
+    if (templateData.negative_prompt !== undefined) updatePayload.negative_prompt = templateData.negative_prompt;
+    if (templateData.quality !== undefined) updatePayload.quality = templateData.quality;
+    if (templateData.video_duration !== undefined) updatePayload.video_duration = templateData.video_duration;
+    if (templateData.video_fps !== undefined) updatePayload.video_fps = templateData.video_fps;
+    if (templateData.seed !== undefined) updatePayload.seed = templateData.seed;
+    if (templateData.currency !== undefined) updatePayload.currency = templateData.currency;
+    // Map and prioritize UI state over database spread
+    if (templateData.is_favorite !== undefined) updatePayload.is_favorite = templateData.is_favorite;
+    if (templateData.is_favorite_status !== undefined) updatePayload.is_favorite = templateData.is_favorite_status;
+    if (templateData.isFavorite !== undefined) updatePayload.is_favorite = templateData.isFavorite;
+
+    // Clean up all possible camelCase and internal keys that shouldn't be sent to DB
+    delete updatePayload.imagePromptSkeleton;
+    delete updatePayload.videoPromptSkeleton;
+    delete updatePayload.inputSchema;
+    delete updatePayload.referenceImageUrl;
+    delete updatePayload.templateType;
+    delete updatePayload.allowUserImageUpload;
+    delete updatePayload.allowUserVideoUpload;
+    delete updatePayload.referenceVideoUrl;
+    delete updatePayload.isFavorite;
+    delete updatePayload.referenceImages; // This is stringified in TemplateEditor, so it needs to be the snake_case version only
+    delete updatePayload.id;
 
     const { data, error } = await insforge.database
         .from('templates')
@@ -115,9 +165,24 @@ export async function updateTemplate(id, templateData) {
 }
 
 /**
+ * Delete a template record
+ */
+export async function deleteTemplate(id) {
+    await insforge.auth.getCurrentSession();
+    const { data, error } = await insforge.database
+        .from('templates')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
  * Admin: Upload a sample preview media (video/image) for a template
  */
 export async function uploadPreviewVideo(templateId, file) {
+    await insforge.auth.getCurrentSession();
     const ext = file.name.split('.').pop();
     const path = `template-previews/${templateId}/preview.${ext}`;
 
@@ -167,14 +232,22 @@ export async function getOrderStatus(id) {
 }
 
 /**
- * Admin: Fetch all orders
+ * Admin: Fetch all orders with full detail (supports admin orders management page)
  */
 export async function fetchAllOrdersAdmin() {
     const { data, error } = await insforge.database
         .from('orders')
         .select(`
-            id, readable_id, email, amount, payment_method, payment_status, generation_status, video_url, created_at, reference_image_url, generated_image_url, template_type,
-            templates ( name )
+            id, readable_id, email, user_id, amount, payment_method, payment_status,
+            generation_status, video_url, created_at, updated_at,
+            stripe_session_id, reference_image_url, generated_image_url,
+            template_type, form_values, constructed_prompt,
+            constructed_image_prompt, constructed_video_prompt,
+            image_task_id, video_task_id, user_video_url,
+            failure_reason, failure_stage, refund_status, refund_amount,
+            refund_initiated_at, email_status, email_sent_at, admin_notes,
+            razorpay_payment_id, razorpay_order_id,
+            templates ( id, name, preview_video_url, template_type )
         `)
         .order('created_at', { ascending: false });
 
@@ -183,7 +256,7 @@ export async function fetchAllOrdersAdmin() {
 }
 
 /**
- * Fetch orders for a specific logged-in user
+ * Fetch orders for a specific logged-in user (customer-facing My Orders page)
  */
 export async function fetchUserOrders(email) {
     if (!email) return [];
@@ -191,12 +264,45 @@ export async function fetchUserOrders(email) {
     const { data, error } = await insforge.database
         .from('orders')
         .select(`
-            id, readable_id, email, amount, payment_method, payment_status, generation_status, video_url, created_at, reference_image_url, generated_image_url, template_type,
-            templates ( name )
+            id, readable_id, email, amount, payment_method, payment_status,
+            generation_status, video_url, created_at, updated_at,
+            reference_image_url, generated_image_url, template_type,
+            failure_reason, failure_stage, refund_status, email_status, email_sent_at,
+            templates ( id, name, preview_video_url, template_type )
         `)
         .eq('email', email)
         .order('created_at', { ascending: false });
 
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Admin: Save internal notes on an order (never shown to customer)
+ */
+export async function updateOrderAdminNotes(orderId, notes) {
+    await insforge.auth.getCurrentSession();
+    const { data, error } = await insforge.database
+        .from('orders')
+        .update({ admin_notes: notes, updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('id, admin_notes, updated_at')
+        .single();
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Admin: Update generation status (e.g. mark as resolved)
+ */
+export async function updateOrderGenerationStatus(orderId, status) {
+    await insforge.auth.getCurrentSession();
+    const { data, error } = await insforge.database
+        .from('orders')
+        .update({ generation_status: status, updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('id, generation_status, updated_at')
+        .single();
     if (error) throw new Error(error.message);
     return data;
 }
@@ -214,6 +320,21 @@ export async function uploadUserImage(file, tempId) {
         .upload(path, file, { upsert: true });
 
     if (error) throw new Error('Image upload failed: ' + error.message);
+    return data.url;
+}
+
+/**
+ * Upload a user's motion reference video to InsForge storage
+ */
+export async function uploadUserVideo(file, tempId) {
+    const ext = file.name.split('.').pop();
+    const path = `user-uploads/${tempId}/motion-video.${ext}`;
+
+    const { data, error } = await insforge.storage
+        .from('template-previews')
+        .upload(path, file, { upsert: true });
+
+    if (error) throw new Error('Video upload failed: ' + error.message);
     return data.url;
 }
 
@@ -289,12 +410,47 @@ export async function verifyRazorpayPayment(payload) {
  * Trigger backend order polling for generation progression
  */
 export async function pollGenerationStatus(orderId, type) {
-    const funcName = type === 'generating_image' ? 'generate-image' : 'generate-video';
-    const { data, error } = await insforge.functions.invoke(funcName, {
+    console.log(`[API] Polling order ${orderId} for ${type}...`);
+    
+    // Fetch the order and template to determine the correct edge function
+    const { data: order, error: orderErr } = await insforge.database
+        .from('orders')
+        .select('*, templates(*)')
+        .eq('id', orderId)
+        .single();
+        
+    if (orderErr) throw new Error(orderErr.message || 'Failed to fetch order for polling');
+    
+    let template = order?.templates;
+    if (Array.isArray(template)) template = template[0];
+    const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+    
+    let targetFunc = 'generate-video';
+    if (type === 'generating_image') {
+        if (aiModel === 'nano_banana_pro_v2') targetFunc = 'generate-image-nano-v2';
+        else targetFunc = 'generate-image';
+    } else {
+        if (aiModel === 'veo_3_1_v2') targetFunc = 'generate-video-veo-v2';
+        else if (aiModel === 'kling_3_0_v2') targetFunc = 'generate-video-kling-v2';
+        else if (aiModel === 'seedance_2_fast_v2') targetFunc = 'generate-video-seedance-v2';
+    }
+    
+    console.log(`[API] Routing poll to ${targetFunc}...`);
+    const { data, error } = await insforge.functions.invoke(targetFunc, {
         body: { orderId, action: 'poll' }
     });
-    if (error) throw new Error(error.message || `Failed to poll ${funcName}`);
+    
+    console.log(`[API] ${targetFunc} response:`, { data, error });
+    if (error) throw new Error(error.message || `Failed to poll ${targetFunc}`);
     return data;
+}
+
+export async function pollImageGenerationStatus(orderId) {
+    return pollGenerationStatus(orderId, 'generating_image');
+}
+
+export async function pollVideoGenerationStatus(orderId) {
+    return pollGenerationStatus(orderId, 'generating');
 }
 /**
  * Fetch a specific site configuration value by key
@@ -328,6 +484,7 @@ export async function setSiteConfig(key, value) {
  * Admin: Upload a hero preview video for the home page
  */
 export async function uploadHeroVideo(file) {
+    await insforge.auth.getCurrentSession();
     const ext = file.name.split('.').pop();
     const path = `site-assets/hero-preview.${ext}`;
 
