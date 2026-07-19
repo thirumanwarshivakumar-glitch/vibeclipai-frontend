@@ -247,14 +247,14 @@ export default async function (req) {
                     try {
                         const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
                         if (RESEND_API_KEY) {
-                            await fetch('https://api.resend.com/emails', {
+                            const res = await fetch('https://api.resend.com/emails', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${RESEND_API_KEY}`,
                                 },
                                 body: JSON.stringify({
-                                    from: 'VibeClipAI <onboarding@resend.dev>',
+                                    from: 'VibeClipAI <invitations@vibeclipsai.com>',
                                     to: [order.email],
                                     subject: '🎬 Your AI Invitation Video is Ready!',
                                     html: `
@@ -268,6 +268,26 @@ export default async function (req) {
                                     `
                                 }),
                             });
+                            const resData = await res.json();
+                            if (!res.ok) {
+                                console.error('[GEN-IMAGE] Resend API error:', JSON.stringify(resData));
+                                await client.database
+                                    .from('orders')
+                                    .update({ email_status: 'failed', updated_at: new Date().toISOString() })
+                                    .eq('id', orderId);
+                            } else {
+                                console.log('[GEN-IMAGE] Email sent successfully, id:', resData.id);
+                                await client.database
+                                    .from('orders')
+                                    .update({ 
+                                        email_status: 'sent', 
+                                        email_sent_at: new Date().toISOString(),
+                                        updated_at: new Date().toISOString() 
+                                    })
+                                    .eq('id', orderId);
+                            }
+                        } else {
+                            console.error('[GEN-IMAGE] RESEND_API_KEY not configured.');
                         }
                     } catch (e) {
                         console.error('Failed to trigger send-email from generate-image:', e);

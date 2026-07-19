@@ -137,8 +137,10 @@ export default async function (req) {
                         
                         // Optional: Trigger email notify here?
                         try {
-                           await client.functions.invoke('send-email', { body: { orderId } });
-                        } catch(e) { console.error('Email trigger fail', e); }
+                           const { data: emailData, error: emailErr } = await client.functions.invoke('send-email', { body: { orderId } });
+                           if (emailErr) console.error('Email trigger rejected:', emailErr);
+                           else console.log('Email trigger succeeded:', emailData);
+                        } catch(e) { console.error('Email trigger crashed:', e); }
 
                         return new Response(JSON.stringify({ success: true, status: 'completed', url: videoUrl }), { status: 200, headers: corsHeaders });
                     } else if (state === 'success') {

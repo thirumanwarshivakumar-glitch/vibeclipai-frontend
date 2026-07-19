@@ -190,7 +190,7 @@ export default async function (req) {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'VibeClipAI <onboarding@resend.dev>',
+        from: 'VibeClipAI <invitations@vibeclipsai.com>',
         to: [to],
         subject: subject,
         html: emailHtml,
@@ -200,10 +200,31 @@ export default async function (req) {
     const data = await res.json();
 
     if (!res.ok) {
+      console.error('[SEND-EMAIL] Resend API error:', JSON.stringify(data));
+      if (orderId) {
+        await client.database
+          .from('orders')
+          .update({
+            email_status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
+      }
       return new Response(JSON.stringify({ message: 'Resend API rejected the email', details: data }), {
         status: res.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    if (orderId) {
+      await client.database
+        .from('orders')
+        .update({
+          email_status: 'sent',
+          email_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
     }
 
     return new Response(JSON.stringify({ success: true, emailId: data.id }), {
