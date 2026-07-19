@@ -21,6 +21,7 @@ export default async function (req) {
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
     const BASE_URL = Deno.env.get('INSFORGE_BASE_URL');
     const ANON_KEY = Deno.env.get('ANON_KEY');
+    const FRONTEND_URL = Deno.env.get('FRONTEND_URL') || 'https://vibeclipsai.com';
 
     if (!RESEND_API_KEY) {
       console.error('[SEND-EMAIL] CRITICAL: RESEND_API_KEY is missing');
@@ -108,7 +109,7 @@ export default async function (req) {
 
                 <!-- CTA Button -->
                 <div style="text-align: center; margin: 28px 0;">
-                  <a href="https://4w8g54a3.insforge.site"
+                  <a href="${FRONTEND_URL}"
                      style="display: inline-block; padding: 14px 36px; background: #6c5ce7;
                             color: white; text-decoration: none; border-radius: 8px;
                             font-weight: 600; font-size: 16px;">
