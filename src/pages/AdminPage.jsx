@@ -39,8 +39,10 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        loadTemplates();
-    }, []);
+        if (isLoaded && user?.email === 'thirumanwarshivakumar@gmail.com') {
+            loadTemplates();
+        }
+    }, [isLoaded, user]);
 
     const filtered = templatesList.filter(
         (t) =>

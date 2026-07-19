@@ -25,6 +25,7 @@ export async function fetchTemplates(options = {}) {
  * Admin: Fetch all templates (drafts too)
  */
 export async function fetchAllTemplatesAdmin() {
+    await insforge.auth.getCurrentSession();
     const { data, error } = await insforge.database
         .from('templates')
         .select('*')
@@ -235,6 +236,7 @@ export async function getOrderStatus(id) {
  * Admin: Fetch all orders with full detail (supports admin orders management page)
  */
 export async function fetchAllOrdersAdmin() {
+    await insforge.auth.getCurrentSession();
     const { data, error } = await insforge.database
         .from('orders')
         .select(`
@@ -261,6 +263,7 @@ export async function fetchAllOrdersAdmin() {
 export async function fetchUserOrders(email) {
     if (!email) return [];
     
+    await insforge.auth.getCurrentSession();
     const { data, error } = await insforge.database
         .from('orders')
         .select(`

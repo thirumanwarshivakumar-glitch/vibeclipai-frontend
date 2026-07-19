@@ -457,7 +457,11 @@ export default function AdminOrdersPage() {
         }
     }, []);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        if (isLoaded && user?.email === ADMIN_EMAIL) {
+            load();
+        }
+    }, [isLoaded, user, load]);
 
     // ── Guard ──────────────────────────────────────────────────
     if (!isLoaded) return (
