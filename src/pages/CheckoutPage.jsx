@@ -203,10 +203,17 @@ export default function CheckoutPage() {
                 } else throw new Error('No checkout URL returned');
             } else if (paymentMethod === 'razorpay') {
                 setStatusText('Initializing Razorpay...');
-                const razorpayOrder = await createRazorpayOrder(orderId, template.price, 'INR');
+                
+                const isProduction = window.location.hostname === 'vibeclipsai.com';
+                const mode = isProduction ? 'live' : 'test';
+                const razorpayKeyId = isProduction
+                    ? (import.meta.env.VITE_RAZORPAY_KEY_ID_LIVE || 'rzp_live_default')
+                    : (import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_Sye28MlYfYvC0l');
+
+                const razorpayOrder = await createRazorpayOrder(orderId, template.price, 'INR', mode);
 
                 const options = {
-                    key: 'rzp_test_Sye28MlYfYvC0l',
+                    key: razorpayKeyId,
                     amount: razorpayOrder.amount,
                     currency: razorpayOrder.currency,
                     name: "VibeClipAI",
@@ -220,7 +227,8 @@ export default function CheckoutPage() {
                                 orderId: orderId,
                                 razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: response.razorpay_order_id,
-                                razorpay_signature: response.razorpay_signature
+                                razorpay_signature: response.razorpay_signature,
+                                mode: mode
                             });
                             
                             navigate('/success', {

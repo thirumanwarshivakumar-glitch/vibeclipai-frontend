@@ -12,10 +12,10 @@ export default async function (req) {
     }
 
     try {
-        const body = await req.json();
-        const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = body;
+        const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature, mode } = body;
 
-        const KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET');
+        const isLive = mode === 'live';
+        const KEY_SECRET = isLive ? Deno.env.get('RAZORPAY_KEY_SECRET_LIVE') : Deno.env.get('RAZORPAY_KEY_SECRET');
 
         // Verification logic
         const encoder = new TextEncoder();

@@ -13,14 +13,15 @@ export default async function (req) {
 
     try {
         const body = await req.json();
-        const { orderId, amount, currency } = body;
+        const { orderId, amount, currency, mode } = body;
 
         if (!orderId) {
             return new Response(JSON.stringify({ error: 'Order ID required' }), { status: 400, headers: corsHeaders });
         }
 
-        const KEY_ID = Deno.env.get('RAZORPAY_KEY_ID');
-        const KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET');
+        const isLive = mode === 'live';
+        const KEY_ID = isLive ? Deno.env.get('RAZORPAY_KEY_ID_LIVE') : Deno.env.get('RAZORPAY_KEY_ID');
+        const KEY_SECRET = isLive ? Deno.env.get('RAZORPAY_KEY_SECRET_LIVE') : Deno.env.get('RAZORPAY_KEY_SECRET');
 
         const orderAmount = amount ? Math.round(amount * 84 * 100) : 50000;
         const orderCurrency = currency || 'INR';

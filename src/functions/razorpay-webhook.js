@@ -15,23 +15,48 @@ export default async function (req) {
         const rawBody = await req.text();
         const signature = req.headers.get('x-razorpay-signature');
 
-        const WEBHOOK_SECRET = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') || Deno.env.get('RAZORPAY_KEY_SECRET') || process.env.RAZORPAY_KEY_SECRET;
+        const WEBHOOK_SECRET_LIVE = Deno.env.get('RAZORPAY_WEBHOOK_SECRET_LIVE') || Deno.env.get('RAZORPAY_KEY_SECRET_LIVE');
+        const WEBHOOK_SECRET_TEST = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') || Deno.env.get('RAZORPAY_KEY_SECRET');
+
+        let isVerified = false;
+        let isLiveMode = false;
 
         // Verify webhook signature
         if (signature) {
             const encoder = new TextEncoder();
             const data = encoder.encode(rawBody);
-            const keyData = encoder.encode(WEBHOOK_SECRET);
 
-            const cryptoKey = await crypto.subtle.importKey(
-                'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-            );
+            // 1. Try verifying with Live Secret
+            if (WEBHOOK_SECRET_LIVE) {
+                const keyDataLive = encoder.encode(WEBHOOK_SECRET_LIVE);
+                const cryptoKeyLive = await crypto.subtle.importKey(
+                    'raw', keyDataLive, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+                );
+                const signatureBufferLive = await crypto.subtle.sign('HMAC', cryptoKeyLive, data);
+                const signatureBytesLive = new Uint8Array(signatureBufferLive);
+                const expectedSignatureLive = Array.from(signatureBytesLive).map((b) => b.toString(16).padStart(2, '0')).join('');
+                if (expectedSignatureLive === signature) {
+                    isVerified = true;
+                    isLiveMode = true;
+                }
+            }
 
-            const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data);
-            const signatureBytes = new Uint8Array(signatureBuffer);
-            const expectedSignature = Array.from(signatureBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+            // 2. Try verifying with Test Secret if not already verified
+            if (!isVerified && WEBHOOK_SECRET_TEST) {
+                const keyDataTest = encoder.encode(WEBHOOK_SECRET_TEST);
+                const cryptoKeyTest = await crypto.subtle.importKey(
+                    'raw', keyDataTest, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+                );
+                const signatureBufferTest = await crypto.subtle.sign('HMAC', cryptoKeyTest, data);
+                const signatureBytesTest = new Uint8Array(signatureBufferTest);
+                const expectedSignatureTest = Array.from(signatureBytesTest).map((b) => b.toString(16).padStart(2, '0')).join('');
+                if (expectedSignatureTest === signature) {
+                    isVerified = true;
+                    isLiveMode = false;
+                }
+            }
 
-            if (expectedSignature !== signature) {
+            if (!isVerified) {
                 return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), { status: 400, headers: corsHeaders });
             }
         }

@@ -390,9 +390,9 @@ export async function createStripeCheckout(orderId) {
 /**
  * Create a Razorpay order
  */
-export async function createRazorpayOrder(orderId, amount, currency) {
+export async function createRazorpayOrder(orderId, amount, currency, mode) {
     const { data, error } = await insforge.functions.invoke('create-razorpay-order', {
-        body: { orderId, amount, currency }
+        body: { orderId, amount, currency, mode }
     });
     if (error) throw new Error(error.message || 'Failed to create Razorpay order');
     return data;
