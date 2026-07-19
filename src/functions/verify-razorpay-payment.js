@@ -12,6 +12,7 @@ export default async function (req) {
     }
 
     try {
+        const body = await req.json();
         const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature, mode } = body;
 
         const isLive = mode === 'live';
