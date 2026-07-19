@@ -37,7 +37,10 @@ export default async function (req) {
 
         const aiModel = (template?.ai_model || '').toLowerCase();
         const isKling = aiModel.includes('kling') || (template?.name || '').toLowerCase().includes('kling') || (template?.template_type === 'video' && aiModel === '');
-        const KIE_API_KEY = Deno.env.get('KIE_API_KEY') || '06cfa869354f6e2b85b8d5bbf140ca93';
+        const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
+        if (!KIE_API_KEY) {
+            return new Response(JSON.stringify({ error: 'KIE_API_KEY not configured' }), { status: 500, headers: corsHeaders });
+        }
         const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
         // Map Veo models properly for the Kie.ai API
