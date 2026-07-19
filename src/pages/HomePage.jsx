@@ -44,12 +44,6 @@ function SplineHero({ scene }) {
           style={{ width: '100%', height: '100%', display: 'block', opacity: ready ? 1 : 0, transition: 'opacity 0.6s ease' }}
         />
       </SplineBoundary>
-      {/* Demo label — always visible, bottom-right corner */}
-      <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
-        <span className="inline-block px-2 py-1 text-[10px] font-medium text-white/40 bg-black/60 backdrop-blur-md rounded-md border border-white/[0.06]">
-          Demo scene — replace with branded 3D asset
-        </span>
-      </div>
     </div>
   );
 }

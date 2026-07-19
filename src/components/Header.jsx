@@ -28,6 +28,7 @@ export default function Header() {
             </Link>
 
             <div className="hidden lg:flex items-center gap-7">
+              <Link to="/" className="nav-link text-[13px] font-medium text-white/50 hover:text-white transition-colors duration-200">Home</Link>
               <Link to="/templates" className="nav-link text-[13px] font-medium text-white/50 hover:text-white transition-colors duration-200">Templates</Link>
               <a href="/#trending" className="nav-link text-[13px] font-medium text-white/50 hover:text-white transition-colors duration-200">Trending</a>
               <a href="/#how-it-works" className="nav-link text-[13px] font-medium text-white/50 hover:text-white transition-colors duration-200">How It Works</a>
@@ -92,6 +93,7 @@ export default function Header() {
             </button>
           </div>
           <div className="flex flex-col gap-1">
+            <Link to="/" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">Home</Link>
             <Link to="/templates" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">Templates</Link>
             <a href="/#how-it-works" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">How It Works</a>
             <a href="/#features" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">Features</a>

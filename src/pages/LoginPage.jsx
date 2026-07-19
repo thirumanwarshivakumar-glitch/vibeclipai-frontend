@@ -1,17 +1,31 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Mail } from 'lucide-react';
 import { insforge } from '../lib/insforge';
+import {
+    AmbientBlobs, LogoMark, AuthInput, PasswordInput,
+    AuthButton, OAuthButton, Divider, ErrorBanner,
+    GoogleIcon, GitHubIcon, cardEntrance, shakeVariants,
+} from '../components/auth/AuthComponents';
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const [email, setEmail] = useState('');
+    const [email, setEmail]       = useState('');
     const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [loading, setLoading]   = useState(false);
+    const [error, setError]       = useState('');
+    const [shake, setShake]       = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        if (!email || !password) {
+            setError('Please fill in both fields.');
+            setShake(true);
+            setTimeout(() => setShake(false), 600);
+            return;
+        }
+
         setLoading(true);
         setError('');
 
@@ -30,12 +44,16 @@ export default function LoginPage() {
             }
         } catch (err) {
             setError(err.message || 'Invalid email or password');
+            setShake(true);
+            setTimeout(() => setShake(false), 600);
         } finally {
             setLoading(false);
         }
     };
 
     const handleSocialLogin = async (provider) => {
+        setLoading(true);
+        setError('');
         try {
             await insforge.auth.signInWithOAuth({
                 provider,
@@ -43,122 +61,144 @@ export default function LoginPage() {
             });
         } catch (err) {
             setError(`Failed to sign in with ${provider}`);
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="page-wrapper" style={{ paddingTop: '100px', paddingBottom: '100px', minHeight: '100vh', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="container" style={{ maxWidth: '440px' }}>
-                <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                    <Link to="/" className="logo" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'inline-block' }}>
-                        VibeClipAI
-                    </Link>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                        Welcome back
-                    </h2>
-                    <p style={{ color: 'var(--text-secondary)' }}>
-                        Enter your credentials to access your account
-                    </p>
-                </div>
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0a0c] px-4 py-20">
+            <AmbientBlobs />
 
-                <div className="card" style={{ padding: '40px' }}>
-                    <form className="space-y-6" onSubmit={handleLogin}>
-                        {error && (
-                            <div style={{ backgroundColor: '#fff5f5', borderLeft: '4px solid #f56565', padding: '12px', borderRadius: '8px', marginBottom: '20px' }}>
-                                <p style={{ fontSize: '0.875rem', color: '#c53030' }}>{error}</p>
+            {/* Noise texture overlay */}
+            <div className="noise-overlay" />
+
+            {/* Card */}
+            <motion.div
+                {...cardEntrance}
+                className="relative z-10 w-full max-w-[420px]"
+            >
+                {/* Spotlight glow behind card */}
+                <div className="absolute inset-0 -top-8 bg-violet-600/12 blur-3xl rounded-full pointer-events-none" />
+
+                <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden">
+                    {/* Top gradient border accent */}
+                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
+
+                    <div className="px-8 pt-8 pb-6">
+                        {/* Header */}
+                        <div className="flex flex-col items-center gap-4 mb-8">
+                            <motion.div
+                                initial={{ scale: 0.7, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ type: 'spring', stiffness: 400, damping: 20, delay: 0.1 }}
+                            >
+                                <LogoMark />
+                            </motion.div>
+                            <div className="text-center">
+                                <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">
+                                    Welcome back
+                                </h1>
+                                <p className="text-sm text-zinc-500">
+                                    Sign in to your VibeClipAI account
+                                </p>
                             </div>
-                        )}
+                        </div>
 
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="email">Email Address</label>
-                            <input
-                                id="email"
-                                type="email"
-                                className="form-input"
-                                placeholder="you@example.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
+                        {/* OAuth buttons */}
+                        <div className="flex gap-3 mb-5">
+                            <OAuthButton
+                                provider="Google"
+                                icon={GoogleIcon}
+                                onClick={() => handleSocialLogin('google')}
+                                disabled={loading}
+                            />
+                            <OAuthButton
+                                provider="GitHub"
+                                icon={GitHubIcon}
+                                onClick={() => handleSocialLogin('github')}
+                                disabled={loading}
                             />
                         </div>
 
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="password">Password</label>
-                            <div style={{ position: 'relative' }}>
-                                <input
-                                    id="password"
-                                    type={showPassword ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    style={{ paddingRight: '46px' }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', color: 'var(--text-tertiary)' }}
-                                >
-                                    {showPassword ? '🙈' : '👁️'}
-                                </button>
+                        <Divider />
+
+                        {/* Form */}
+                        <motion.form
+                            variants={shakeVariants}
+                            animate={shake ? 'shake' : 'idle'}
+                            onSubmit={handleLogin}
+                            className="flex flex-col gap-4 mt-5"
+                        >
+                            {error && <ErrorBanner message={error} />}
+
+                            <AuthInput
+                                id="email"
+                                type="email"
+                                label="Email Address"
+                                placeholder="you@example.com"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                icon={Mail}
+                                disabled={loading}
+                                autoComplete="email"
+                            />
+
+                            <PasswordInput
+                                id="password"
+                                label="Password"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                disabled={loading}
+                                autoComplete="current-password"
+                            />
+
+                            {/* Remember + Forgot row */}
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-2 text-xs text-zinc-500 cursor-pointer group">
+                                    <input
+                                        type="checkbox"
+                                        className="w-3.5 h-3.5 rounded border border-white/20 bg-white/5 accent-violet-600 cursor-pointer"
+                                    />
+                                    <span className="group-hover:text-zinc-300 transition-colors">Remember me</span>
+                                </label>
+                                <a href="#" className="text-xs text-violet-400 hover:text-violet-300 font-medium transition-colors">
+                                    Forgot password?
+                                </a>
                             </div>
-                        </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer' }}>
-                                <input type="checkbox" style={{ width: '16px', height: '16px' }} />
-                                Remember me
-                            </label>
-                            <a href="#" style={{ fontSize: '0.875rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                                Forgot password?
-                            </a>
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="btn btn-primary"
-                            disabled={loading}
-                            style={{ width: '100%', padding: '14px' }}
-                        >
-                            {loading ? 'Signing in...' : 'Sign in'}
-                        </button>
-                    </form>
-
-                    <div style={{ margin: '32px 0', textAlign: 'center', position: 'relative' }}>
-                        <div style={{ borderTop: '1.5px solid var(--border-color)', position: 'absolute', top: '50%', left: 0, right: 0 }}></div>
-                        <span style={{ position: 'relative', background: 'var(--bg-card)', padding: '0 12px', color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
-                            Or continue with
-                        </span>
+                            <div className="mt-1">
+                                <AuthButton loading={loading}>
+                                    Sign In
+                                </AuthButton>
+                            </div>
+                        </motion.form>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <button
-                            onClick={() => handleSocialLogin('google')}
-                            className="btn btn-ghost"
-                            style={{ border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}
-                        >
-                            Google
-                        </button>
-                        <button
-                            onClick={() => handleSocialLogin('github')}
-                            className="btn btn-ghost"
-                            style={{ border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}
-                        >
-                            GitHub
-                        </button>
+                    {/* Footer */}
+                    <div className="px-8 py-4 border-t border-white/6 bg-white/[0.02]">
+                        <p className="text-center text-xs text-zinc-600">
+                            Don't have an account?{' '}
+                            <Link to="/signup" className="text-violet-400 hover:text-violet-300 font-semibold transition-colors">
+                                Sign up for free
+                            </Link>
+                        </p>
                     </div>
                 </div>
 
-                <div style={{ marginTop: '32px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                        Don't have an account?{' '}
-                        <Link to="/signup" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>
-                            Sign up for free
-                        </Link>
-                    </p>
-                </div>
-            </div>
+                {/* Trust badges */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="mt-6 flex items-center justify-center gap-5 text-[11px] text-zinc-700"
+                >
+                    {['🔒 SSL Encrypted', '✦ No spam ever', '⚡ Instant access'].map(item => (
+                        <span key={item}>{item}</span>
+                    ))}
+                </motion.div>
+            </motion.div>
         </div>
     );
 }
