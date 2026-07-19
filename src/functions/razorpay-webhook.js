@@ -78,15 +78,19 @@ export default async function (req) {
                 // Check current status before updating to avoid duplicate runs
                 const { data: currentOrder, error: checkErr } = await client.database
                     .from('orders')
-                    .select('payment_status, reference_image_url, template_type')
+                    .select('payment_status, reference_image_url, template_type, templates(ai_model)')
                     .eq('id', orderId)
                     .single();
 
                 if (!checkErr && currentOrder && currentOrder.payment_status === 'pending') {
-                     // Proceed to confirm payment internally natively
+                    let template = currentOrder?.templates;
+                    if (Array.isArray(template)) template = template[0];
+                    const aiModel = (template?.ai_model || '').toLowerCase();
+                    const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+
                     const hasRefImage = !!currentOrder?.reference_image_url;
                     const isImageOnly = currentOrder?.template_type === 'image';
-                    const startStatus = (hasRefImage || isImageOnly) ? 'generating_image' : 'generating';
+                    const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
                     await client.database
                         .from('orders')
@@ -97,18 +101,37 @@ export default async function (req) {
                         })
                         .eq('id', orderId);
 
+                    // Determine Router (matches verify-razorpay-payment.js and process-order.js)
+                    const getTargetFunction = (type, currentModel) => {
+                        if (type === 'image') {
+                            if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                            return 'generate-image';
+                        }
+                        if (type === 'video') {
+                            if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                            if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                            if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                            return 'generate-video';
+                        }
+                        return 'generate-video';
+                    };
+
                     // Trigger the asynchronous generation natively
                     try {
-                        if (hasRefImage || isImageOnly) {
-                            await client.functions.invoke('generate-image', {
+                        if (startStatus === 'generating_image') {
+                            const targetFunc = getTargetFunction('image', aiModel);
+                            await client.functions.invoke(targetFunc, {
                                 body: { orderId, action: 'submit' },
                             });
                         } else {
-                            await client.functions.invoke('generate-video', {
+                            const targetFunc = getTargetFunction('video', aiModel);
+                            await client.functions.invoke(targetFunc, {
                                 body: { orderId, action: 'submit' },
                             });
                         }
-                    } catch (genErr) {}
+                    } catch (genErr) {
+                        console.error('Failed to trigger webhook generation pipeline:', genErr);
+                    }
                 }
             }
         }

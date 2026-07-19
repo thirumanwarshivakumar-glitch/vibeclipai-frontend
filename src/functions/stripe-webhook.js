@@ -34,21 +34,54 @@ export default async function (req: Request): Promise<Response> {
                 });
             }
 
+            const { data: order } = await client.database
+                .from('orders')
+                .select('payment_status, reference_image_url, template_type, templates(ai_model)')
+                .eq('id', orderId)
+                .single();
+            
+            let template = order?.templates;
+            if (Array.isArray(template)) template = template[0];
+            const aiModel = (template?.ai_model || '').toLowerCase();
+            const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+
+            const hasRefImage = !!order?.reference_image_url;
+            const isImageOnly = order?.template_type === 'image';
+            const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
+
             // Mark payment as completed, start generation
             await client.database
                 .from('orders')
                 .update({
                     payment_status: 'paid',
-                    generation_status: 'generating',
+                    generation_status: startStatus,
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', orderId);
 
+            const getTargetFunction = (type: string, currentModel: string) => {
+                if (type === 'image') {
+                    if (currentModel === 'nano_banana_pro_v2') return 'generate-image-nano-v2';
+                    return 'generate-image';
+                }
+                if (type === 'video') {
+                    if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
+                    if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                    if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                    return 'generate-video';
+                }
+                return 'generate-video';
+            };
+
             // Trigger video generation asynchronously
             try {
-                await client.functions.invoke('generate-video', {
-                    body: { orderId },
-                });
+                if (startStatus === 'generating_image') {
+                    const targetFunc = getTargetFunction('image', aiModel);
+                    await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit' } });
+                } else {
+                    const targetFunc = getTargetFunction('video', aiModel);
+                    await client.functions.invoke(targetFunc, { body: { orderId, action: 'submit' } });
+                }
             } catch (genErr: unknown) {
                 console.error('Failed to trigger video generation:', String(genErr));
                 // Don't fail the webhook — the order is still paid
