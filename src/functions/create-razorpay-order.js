@@ -23,7 +23,7 @@ export default async function (req) {
         const KEY_ID = isLive ? Deno.env.get('RAZORPAY_KEY_ID_LIVE') : Deno.env.get('RAZORPAY_KEY_ID');
         const KEY_SECRET = isLive ? Deno.env.get('RAZORPAY_KEY_SECRET_LIVE') : Deno.env.get('RAZORPAY_KEY_SECRET');
 
-        const orderAmount = amount ? Math.round(amount * 84 * 100) : 50000;
+        const orderAmount = amount ? Math.round(amount * 100) : 50000;
         const orderCurrency = currency || 'INR';
 
         const payload = {
