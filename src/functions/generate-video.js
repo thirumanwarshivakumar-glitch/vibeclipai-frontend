@@ -69,7 +69,8 @@ export default async function (req) {
             } : {
                 model: mappedVeoModel,
                 prompt: fullPrompt,
-                reference_image: referenceImageUrl
+                reference_image: referenceImageUrl,
+                aspectRatio: (order.form_values?.aspect_ratio || template?.default_aspect_ratio || '9:16').split(' ')[0]
             };
 
             try {

@@ -42,10 +42,15 @@ export default async function (req) {
             const referenceImageUrl = order.reference_image_url || order.generated_image_url;
             const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
 
+            const template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
+            const ratioRaw = order.form_values?.aspect_ratio || template?.default_aspect_ratio || '9:16';
+            const cleanRatio = ratioRaw.split(' ')[0];
+
             const kieBody = {
                 model: 'veo3_fast', // Ensure we use the correct model for Veo
                 prompt: fullPrompt,
-                reference_image: referenceImageUrl
+                reference_image: referenceImageUrl,
+                aspectRatio: cleanRatio
             };
 
             try {
