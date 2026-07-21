@@ -384,11 +384,11 @@ export default function AdminPage() {
                         <button onClick={() => setVideoUploadTemplate(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white">
                             ✕
                         </button>
-                        <h2 className="text-xl font-bold mb-2">Upload Preview Video</h2>
-                        <p className="text-sm text-zinc-400 mb-6">Upload a short preview MP4 for <strong className="text-white">{videoUploadTemplate.name}</strong></p>
+                        <h2 className="text-xl font-bold mb-2">Upload Preview {videoUploadTemplate.template_type === 'image' ? 'Image' : 'Video'}</h2>
+                        <p className="text-sm text-zinc-400 mb-6">Upload a preview {videoUploadTemplate.template_type === 'image' ? 'image' : 'video'} for <strong className="text-white">{videoUploadTemplate.name}</strong></p>
                         
                         <VideoUploader
-                            templateId={videoUploadTemplate.id}
+                            template={videoUploadTemplate}
                             onUploadComplete={handleVideoUploadComplete}
                         />
                     </div>
