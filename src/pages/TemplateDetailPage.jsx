@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, Upload, X, Check, Image as ImageIcon, Video, Sparkles } from 'lucide-react';
+import { ArrowLeft, Play, Upload, X, Check, Image as ImageIcon, Video, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import FormRenderer from '../components/FormRenderer';
 import { fetchTemplateById } from '../lib/api';
 
@@ -25,6 +25,7 @@ export default function TemplateDetailPage() {
 
     const videoPreviewRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(true);
+    const [isMuted, setIsMuted] = useState(true);
 
     useEffect(() => {
         setLoading(true);
@@ -179,9 +180,21 @@ export default function TemplateDetailPage() {
             videoPreviewRef.current.pause();
             setIsPlaying(false);
         } else {
+            if (isMuted) {
+                videoPreviewRef.current.muted = false;
+                setIsMuted(false);
+            }
             videoPreviewRef.current.play();
             setIsPlaying(true);
         }
+    };
+
+    const toggleMute = (e) => {
+        e.stopPropagation();
+        if (!videoPreviewRef.current) return;
+        const newMuted = !isMuted;
+        videoPreviewRef.current.muted = newMuted;
+        setIsMuted(newMuted);
     };
 
     return (
@@ -218,7 +231,7 @@ export default function TemplateDetailPage() {
                                             ref={videoPreviewRef}
                                             src={template.preview_video_url}
                                             autoPlay
-                                            muted
+                                            muted={isMuted}
                                             loop
                                             playsInline
                                             className="w-full h-full object-cover rounded-[1.75rem]"
@@ -230,6 +243,13 @@ export default function TemplateDetailPage() {
                                             <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
                                                 {!isPlaying ? <Play className="w-8 h-8 fill-white ml-1" /> : <div className="w-6 h-6 border-l-4 border-r-4 border-white"></div>}
                                             </div>
+                                        </button>
+                                        <button 
+                                            onClick={toggleMute}
+                                            className="absolute bottom-6 right-6 z-20 p-3 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 text-white backdrop-blur-md transition-all flex items-center justify-center shadow-lg hover:scale-110"
+                                            title={isMuted ? "Unmute" : "Mute"}
+                                        >
+                                            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                                         </button>
                                     </>
                                 ) : (
