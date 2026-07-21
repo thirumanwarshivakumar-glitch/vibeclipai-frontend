@@ -24,6 +24,7 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [statusText, setStatusText] = useState('');
+    const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
     // User image upload state
     const initialFiles = passedImageFiles.length > 0 ? passedImageFiles : (passedImageFile ? [passedImageFile] : []);
@@ -146,6 +147,10 @@ export default function CheckoutPage() {
     const inputSchema = template.input_schema || template.inputSchema || [];
 
     const handlePay = async () => {
+        if (!disclaimerAccepted) {
+            alert('Please read and accept the AI generation disclaimer to proceed.');
+            return;
+        }
         if (!email.trim() || !email.includes('@')) {
             alert('Please enter a valid email address.');
             return;
@@ -478,19 +483,39 @@ export default function CheckoutPage() {
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/10">
+                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
                                 <span className="text-lg text-zinc-300">Total</span>
                                 <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] to-[#EC4899]">
                                     ₹{Number(template.price).toFixed(2)}
                                 </span>
                             </div>
 
+                            {/* AI Disclaimer Checkbox */}
+                            <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-300 leading-relaxed">
+                                <p className="mb-3">
+                                    <span className="font-semibold text-purple-300">⚠️ AI Generation Terms:</span> By purchasing, you understand that AI-generated results vary from the website preview. The final video (including facial features, positioning, and details) will not be an exact replica of the demo. Output quality depends directly on your uploaded reference assets.
+                                </p>
+                                <label className="flex items-start gap-2.5 cursor-pointer select-none text-zinc-300 hover:text-white transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={disclaimerAccepted}
+                                        onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                                        className="mt-0.5 w-3.5 h-3.5 accent-[#EC4899] rounded border-white/20"
+                                    />
+                                    <span>I understand and accept that AI results may vary.</span>
+                                </label>
+                            </div>
+
                             <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                                whileHover={{ scale: disclaimerAccepted ? 1.02 : 1 }}
+                                whileTap={{ scale: disclaimerAccepted ? 0.98 : 1 }}
                                 onClick={handlePay}
-                                disabled={loading}
-                                className="w-full py-4 rounded-xl font-bold text-white shadow-lg shadow-[#7C3AED]/20 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] flex justify-center items-center gap-2"
+                                disabled={loading || !disclaimerAccepted}
+                                className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex justify-center items-center gap-2 transition-all ${
+                                    disclaimerAccepted 
+                                        ? 'bg-gradient-to-r from-[#7C3AED] to-[#EC4899] shadow-[#7C3AED]/20 cursor-pointer' 
+                                        : 'bg-zinc-700/50 text-zinc-400 border border-white/5 cursor-not-allowed shadow-none'
+                                }`}
                             >
                                 {loading ? (
                                     <>

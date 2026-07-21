@@ -412,6 +412,9 @@ export default function TemplateDetailPage() {
 
                                     {/* Action Buttons */}
                                     <div className="pt-8 border-t border-white/10 flex flex-col gap-4">
+                                        <div className="p-4 rounded-xl bg-violet-500/10 border border-violet-500/20 text-xs text-zinc-300 leading-relaxed">
+                                            <span className="font-semibold text-purple-300">💡 Creative Style Notice:</span> The preview is an example of the expected creative concept. Generated details (such as facial features, expressions, and lighting) will vary based on your uploaded reference photo.
+                                        </div>
                                         <motion.button 
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
