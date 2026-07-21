@@ -77,17 +77,35 @@ export default function TemplatesPage() {
                         animate={{ opacity: 1, x: 0 }}
                         className="flex flex-col sm:flex-row gap-4 w-full md:w-auto"
                     >
-                        <div className="flex bg-white/5 rounded-full p-1 border border-white/10">
+                        <div className="flex bg-white/5 rounded-full p-1 border border-white/10 relative">
                             <button
                                 onClick={() => setActiveType('video')}
-                                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeType === 'video' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
+                                className={`relative flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-colors z-10 ${
+                                    activeType === 'video' ? 'text-white' : 'text-zinc-400 hover:text-white'
+                                }`}
                             >
+                                {activeType === 'video' && (
+                                    <motion.div
+                                        layoutId="activeTypeHighlight"
+                                        className="absolute inset-0 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] rounded-full -z-10 shadow-lg shadow-[#7C3AED]/20"
+                                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                    />
+                                )}
                                 <Video className="w-4 h-4" /> Video
                             </button>
                             <button
                                 onClick={() => setActiveType('image')}
-                                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeType === 'image' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
+                                className={`relative flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-colors z-10 ${
+                                    activeType === 'image' ? 'text-white' : 'text-zinc-400 hover:text-white'
+                                }`}
                             >
+                                {activeType === 'image' && (
+                                    <motion.div
+                                        layoutId="activeTypeHighlight"
+                                        className="absolute inset-0 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] rounded-full -z-10 shadow-lg shadow-[#7C3AED]/20"
+                                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                    />
+                                )}
                                 <ImageIcon className="w-4 h-4" /> Image
                             </button>
                         </div>
