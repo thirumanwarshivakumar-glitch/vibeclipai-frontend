@@ -3,7 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CreditCard, Upload, Video, X, ShieldCheck, Mail, ArrowRight, Camera } from 'lucide-react';
 import { useUser } from '@insforge/react';
-import { createOrder, createStripeCheckout, uploadUserImage, uploadUserVideo, createRazorpayOrder, verifyRazorpayPayment } from '../lib/api';
+import { createOrder, createStripeCheckout, uploadUserImage, uploadUserVideo, createRazorpayOrder, verifyRazorpayPayment, fileToBase64 } from '../lib/api';
 
 export default function CheckoutPage() {
     const location = useLocation();
@@ -169,20 +169,39 @@ export default function CheckoutPage() {
         try {
             let userImageUrl = null;
             let userVideoUrl = null;
+            let userImageBase64 = null;
             const tempId = `temp-${Date.now()}`;
 
             if (requiresUserImage && userImageFiles.length > 0) {
-                setStatusText('Uploading your image(s)...');
-                const uploadPromises = userImageFiles.map((file, idx) => 
-                    uploadUserImage(file, `${tempId}-${idx}`)
-                );
-                const urls = await Promise.all(uploadPromises);
-                userImageUrl = urls.join(',');
+                setStatusText('Processing your reference image...');
+                // Convert reference photo to Base64 to enable secure Edge Function backend upload for guest users
+                try {
+                    userImageBase64 = await fileToBase64(userImageFiles[0]);
+                } catch (e) {
+                    console.warn('Failed to convert image to Base64:', e);
+                }
+
+                // If user is authenticated, also attempt client-side storage upload as fallback
+                if (user?.id) {
+                    try {
+                        const uploadPromises = userImageFiles.map((file, idx) => 
+                            uploadUserImage(file, `${tempId}-${idx}`)
+                        );
+                        const urls = await Promise.all(uploadPromises);
+                        userImageUrl = urls.join(',');
+                    } catch (e) {
+                        console.warn('Client storage upload skipped for user:', e.message);
+                    }
+                }
             }
 
-            if (userVideoFile) {
+            if (userVideoFile && user?.id) {
                 setStatusText('Uploading your motion video...');
-                userVideoUrl = await uploadUserVideo(userVideoFile, tempId);
+                try {
+                    userVideoUrl = await uploadUserVideo(userVideoFile, tempId);
+                } catch (e) {
+                    console.warn('Client video upload skipped:', e.message);
+                }
             }
 
             setStatusText('Creating order...');
@@ -194,6 +213,7 @@ export default function CheckoutPage() {
                 userId: user?.id,
                 userImageUrl,
                 userVideoUrl,
+                userImageBase64,
             });
 
             if (!orderResult?.order?.id) throw new Error('Failed to create order');

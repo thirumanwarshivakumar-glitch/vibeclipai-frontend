@@ -159,11 +159,11 @@ export default function TemplateCard({ template, delay = 0 }) {
                         </div>
                     )}
 
-                    {/* Floating Glass Overlay Footer (Video Templates: Hover Reveal | Image Templates: Untouched Static) */}
+                    {/* Floating Glass Overlay Footer (Video Templates: Always Visible on Mobile, Hover Reveal on Desktop | Image Templates: Static) */}
                     <div 
                         className={`absolute bottom-0 inset-x-0 p-2.5 sm:p-3.5 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 to-transparent backdrop-blur-md border-t border-white/10 z-20 transition-all duration-300 flex flex-col justify-end ${
                             !isImage 
-                                ? 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto' 
+                                ? 'opacity-100 translate-y-0 pointer-events-auto sm:opacity-0 sm:translate-y-2 sm:group-hover:opacity-100 sm:group-hover:translate-y-0 sm:pointer-events-none sm:group-hover:pointer-events-auto' 
                                 : ''
                         }`}
                         style={{ transform: "translateZ(30px)" }}

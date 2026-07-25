@@ -76,8 +76,8 @@ export default function Header() {
 
       {/* Mobile Menu */}
       <div className={`mobile-menu fixed inset-0 z-[60] bg-ink-950/98 backdrop-blur-xl ${mobileOpen ? 'open' : ''}`}>
-        <div className="flex flex-col h-full p-6">
-          <div className="flex items-center justify-between mb-10">
+        <div className="flex flex-col h-full p-6 overflow-y-auto">
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-400 flex items-center justify-center">
                 <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -92,7 +92,7 @@ export default function Header() {
               </svg>
             </button>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 mb-6">
             <Link to="/" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">Home</Link>
             <Link to="/templates" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">Templates</Link>
             <a href="/#how-it-works" className="py-3 text-xl font-semibold text-white/80 hover:text-violet-400 transition-colors">How It Works</a>
@@ -109,22 +109,16 @@ export default function Header() {
               )}
             </SignedIn>
           </div>
-          <div className="mt-auto flex flex-col gap-3">
-            {!isLoaded ? (
-              <div className="h-10 rounded-full bg-white/5 animate-pulse" />
-            ) : (
-              <>
-                <SignedOut>
-                  <Link to="/login" className="text-center py-2.5 text-[13px] font-medium text-white/50 hover:text-white transition-colors">Sign In</Link>
-                  <Link to="/signup" className="text-center py-2.5 text-[13px] font-semibold text-white bg-white/10 rounded-full hover:bg-white/15 transition-colors">Get Started</Link>
-                </SignedOut>
-                <SignedIn>
-                  <div className="flex justify-center py-2.5">
-                    <UserButton />
-                  </div>
-                </SignedIn>
-              </>
-            )}
+          <div className="mt-auto pt-6 border-t border-white/10 flex flex-col gap-3">
+            <SignedOut>
+              <Link to="/login" className="text-center py-2.5 text-[13px] font-medium text-white/70 hover:text-white transition-colors">Sign In</Link>
+              <Link to="/signup" className="text-center py-2.5 text-[13px] font-semibold text-white bg-white/10 rounded-full hover:bg-white/15 transition-colors">Get Started</Link>
+            </SignedOut>
+            <SignedIn>
+              <div className="flex justify-center py-2.5">
+                <UserButton />
+              </div>
+            </SignedIn>
           </div>
         </div>
       </div>
