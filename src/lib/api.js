@@ -2,23 +2,72 @@ import { insforge } from './insforge';
 
 export default insforge;
 
+// In-memory cache for instant 0ms responses on tab switching
+let templatesCache = null;
+let lastFetchTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
+
 /**
- * Fetch all available templates for categories
+ * Fetch all active templates for gallery view with high-performance caching & lightweight payload
  */
 export async function fetchTemplates(options = {}) {
-    let query = insforge.database
-        .from('templates')
-        .select('*')
-        .eq('status', 'active');
-
-    if (options.isFavorite) {
-        query = query.eq('is_favorite', true);
+    const now = Date.now();
+    
+    // Serve from in-memory cache instantly if fresh
+    if (templatesCache && (now - lastFetchTime < CACHE_TTL_MS) && !options.forceRefresh) {
+        if (options.isFavorite) {
+            return templatesCache.filter(t => t.is_favorite);
+        }
+        return templatesCache;
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    try {
+        // Lightweight selective query: exclude prompt skeletons & heavy schemas for fast 150ms gallery load
+        let query = insforge.database
+            .from('templates')
+            .select('id, name, description, category, price, template_type, preview_video_url, preview_image, reference_image_url, default_aspect_ratio, is_favorite, created_at, tags, status')
+            .eq('status', 'active');
 
-    if (error) throw new Error(error.message);
-    return data;
+        if (options.isFavorite) {
+            query = query.eq('is_favorite', true);
+        }
+
+        // 3.5-second timeout safeguard to prevent hanging loading screens
+        const fetchPromise = query.order('created_at', { ascending: false });
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Fetch timeout')), 3500)
+        );
+
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (error) throw new Error(error.message);
+
+        if (data && data.length > 0) {
+            templatesCache = data;
+            lastFetchTime = Date.now();
+            try {
+                sessionStorage.setItem('vibeclips_templates_v2', JSON.stringify(data));
+            } catch (e) {}
+            return data;
+        }
+    } catch (err) {
+        console.warn('fetchTemplates network/timeout warning:', err.message);
+        // Fallback to sessionStorage cache if network fails or times out
+        try {
+            const stored = sessionStorage.getItem('vibeclips_templates_v2');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                templatesCache = parsed;
+                return parsed;
+            }
+        } catch (e) {}
+        
+        // If cache is present, return it even if expired
+        if (templatesCache) return templatesCache;
+        throw err;
+    }
+
+    return [];
 }
 
 /**

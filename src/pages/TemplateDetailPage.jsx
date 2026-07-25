@@ -67,9 +67,14 @@ export default function TemplateDetailPage() {
         template?.name?.toLowerCase().includes('kling') ||
         template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa';
 
+    const tags = template.tags || [];
+    const rawRatio = (template.default_aspect_ratio || template.aspect_ratio || template.aspectRatio || '').toLowerCase();
+    const isVertical916 = rawRatio.includes('9:16') || rawRatio.includes('9/16') || tags.some(t => String(t).includes('9:16') || String(t).includes('9/16')) || isKlingMotionControl;
+    const isSquare11 = rawRatio.includes('1:1') || rawRatio.includes('1/1') || tags.some(t => String(t).includes('1:1') || String(t).includes('1/1'));
+    const mediaAspectRatio = isImage ? '4/5' : (isVertical916 ? '9/16' : (isSquare11 ? '1/1' : '16/9'));
+
     const requiresUserImage = !!(template?.allow_user_image_upload) || isKlingMotionControl;
     const requiresUserVideo = !!(template?.allow_user_video_upload);
-    const tags = template.tags || [];
     const inputSchema = template.input_schema || [];
     const maxUploads = template?.max_user_uploads || template?.maxUserUploads || 1;
 
@@ -223,7 +228,7 @@ export default function TemplateDetailPage() {
                         className="lg:col-span-7 space-y-8 sticky top-28"
                     >
                         {/* Media Preview */}
-                        <div className="glass-panel p-2 rounded-[2rem] overflow-hidden relative shadow-2xl group" style={{ aspectRatio: isImage ? '4/5' : (tags.includes('9:16') ? '9/16' : '16/9') }}>
+                        <div className={`glass-panel p-2 rounded-[2rem] overflow-hidden relative shadow-2xl group ${isVertical916 ? 'max-w-[380px] mx-auto' : ''}`} style={{ aspectRatio: mediaAspectRatio }}>
                             {template.preview_video_url ? (
                                 template.preview_video_url.match(/\.(mp4|webm|mov|avi|m4v|ogv)(\?.*)?$/i) ? (
                                     <>

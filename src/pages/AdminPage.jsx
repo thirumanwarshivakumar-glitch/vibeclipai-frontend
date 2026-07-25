@@ -77,6 +77,7 @@ export default function AdminPage() {
         try {
             await createTemplate({
                 name: `${template.name} (Copy)`,
+                template_type: template.template_type || template.templateType || 'image',
                 description: template.description,
                 category: template.category || '',
                 tags: template.tags || [],
@@ -85,10 +86,11 @@ export default function AdminPage() {
                 videoPromptSkeleton: template.video_prompt_skeleton || '',
                 inputSchema: template.input_schema || [],
                 status: 'draft',
-                ai_model: template.ai_model || 'veo_3_1',
-                generation_mode: template.generation_mode || 'text-to-video',
+                ai_model: template.ai_model || (template.template_type === 'image' ? 'midjourney' : 'veo_3_1'),
+                generation_mode: template.generation_mode || (template.template_type === 'image' ? 'text-to-image' : 'text-to-video'),
                 default_aspect_ratio: template.default_aspect_ratio || '16:9',
                 reference_images: template.reference_images || '[]',
+                reference_image_url: template.reference_image_url || '',
                 max_user_uploads: template.max_user_uploads || 1,
                 music_prompt: template.music_prompt || '',
                 negative_prompt: template.negative_prompt || '',
@@ -97,6 +99,8 @@ export default function AdminPage() {
                 video_fps: template.video_fps || '24',
                 seed: null,
                 currency: template.currency || 'INR',
+                allow_user_image_upload: template.allow_user_image_upload !== undefined ? template.allow_user_image_upload : (template.template_type === 'image'),
+                allow_user_video_upload: template.allow_user_video_upload !== undefined ? template.allow_user_video_upload : (template.template_type === 'video'),
             });
             await loadTemplates();
         } catch (err) {

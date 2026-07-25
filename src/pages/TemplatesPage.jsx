@@ -14,6 +14,11 @@ export default function TemplatesPage() {
 
     const [sortBy, setSortBy] = useState('recommended');
     const [priceRange, setPriceRange] = useState('all');
+    
+    // 10-Item Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    const gridRef = React.useRef(null);
 
     useEffect(() => {
         fetchTemplates()
@@ -41,18 +46,24 @@ export default function TemplatesPage() {
         return ['All', ...Array.from(cats)];
     }, [typeFiltered]);
 
-    // Reset category and format if type changes
+    // Reset category, format, and pagination if filter/sort/type changes
     useEffect(() => {
         setActiveCategory('All');
         setPriceRange('all');
         setSortBy('recommended');
+        setCurrentPage(1);
     }, [activeType]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeCategory, priceRange, sortBy, searchQuery]);
 
     const handleResetAllFilters = () => {
         setActiveCategory('All');
         setPriceRange('all');
         setSortBy('recommended');
         setSearchQuery('');
+        setCurrentPage(1);
     };
 
     // Final filtered and sorted list
@@ -85,6 +96,22 @@ export default function TemplatesPage() {
             return 0; // default recommended
         });
     }, [typeFiltered, activeCategory, searchQuery, activeType, priceRange, sortBy]);
+
+    // 10-Item Paginated Slice
+    const totalPages = Math.max(1, Math.ceil(finalFiltered.length / itemsPerPage));
+    const pagedTemplates = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return finalFiltered.slice(start, start + itemsPerPage);
+    }, [finalFiltered, currentPage, itemsPerPage]);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            if (gridRef.current) {
+                gridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    };
 
     return (
         <div className="min-h-screen pt-24 pb-12 w-full text-white">
@@ -188,10 +215,22 @@ export default function TemplatesPage() {
                 />
 
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-20">
-                        <div className="spinner" style={{ margin: '0 auto 16px', borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#7C3AED', width: 40, height: 40, borderWidth: 3, borderStyle: 'solid', borderRadius: '50%' }}></div>
-                        <h3 className="text-xl font-bold mb-2">Fetching Templates...</h3>
-                        <p className="text-zinc-400">Please wait while we load our premium collection.</p>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                            <div 
+                                key={i} 
+                                className="w-full aspect-[4/5] rounded-3xl bg-white/[0.03] border border-white/5 p-4 flex flex-col justify-between animate-pulse relative overflow-hidden"
+                            >
+                                <div className="w-16 h-5 rounded-full bg-white/10" />
+                                <div className="space-y-2">
+                                    <div className="w-3/4 h-4 rounded-md bg-white/10" />
+                                    <div className="flex justify-between items-center">
+                                        <div className="w-12 h-5 rounded-md bg-white/10" />
+                                        <div className="w-20 h-6 rounded-full bg-white/10" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : finalFiltered.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-sm">
@@ -200,9 +239,9 @@ export default function TemplatesPage() {
                         <p className="text-zinc-400 max-w-md text-center">
                             We couldn't find any {activeType} templates matching your filters. Try clearing your search or selecting a different category.
                         </p>
-                        {(searchQuery || activeCategory !== 'All') && (
+                        {(searchQuery || activeCategory !== 'All' || priceRange !== 'all') && (
                             <button 
-                                onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
+                                onClick={handleResetAllFilters}
                                 className="mt-6 glass-button px-6 py-2 rounded-full text-sm font-semibold"
                             >
                                 Clear Filters
@@ -210,21 +249,64 @@ export default function TemplatesPage() {
                         )}
                     </div>
                 ) : (
-                    <div className="relative">
-                        {/* Mobile swipe indicator hint */}
-                        <div className="sm:hidden flex items-center justify-between text-[11px] font-medium text-purple-300/70 mb-3 px-1">
-                            <span>Swipe to explore templates</span>
-                            <span>{finalFiltered.length} Available</span>
-                        </div>
-
-                        {/* Hybrid Layout Container - Top Aligned Items */}
-                        <div className="flex sm:grid overflow-x-auto snap-x snap-mandatory gap-4 pb-4 sm:pb-0 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-5">
-                            {finalFiltered.map((template, index) => (
-                                <div key={template.id} className="flex-shrink-0 w-[78vw] max-w-[280px] snap-center sm:w-auto sm:max-w-none h-full">
-                                    <TemplateCard template={template} delay={(index % 5) * 0.08} />
+                    <div className="relative" ref={gridRef}>
+                        {/* High-Density 2-Column Mobile & Responsive Grid */}
+                        <div className="grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                            {pagedTemplates.map((template, index) => (
+                                <div key={template.id} className="w-full h-full">
+                                    <TemplateCard template={template} delay={(index % 5) * 0.06} />
                                 </div>
                             ))}
                         </div>
+
+                        {/* Modern Accessible Glass Pagination Bar */}
+                        {totalPages > 1 && (
+                            <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-white/10">
+                                <div className="text-xs text-zinc-400 font-medium order-2 sm:order-1">
+                                    Showing <span className="text-white font-semibold">{((currentPage - 1) * itemsPerPage) + 1}</span> to{' '}
+                                    <span className="text-white font-semibold">{Math.min(currentPage * itemsPerPage, finalFiltered.length)}</span> of{' '}
+                                    <span className="text-white font-semibold">{finalFiltered.length}</span> templates
+                                </div>
+
+                                <nav aria-label="Template pagination" className="flex items-center gap-2 order-1 sm:order-2">
+                                    <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        aria-label="Go to previous page"
+                                        className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        ◄ Prev
+                                    </button>
+
+                                    {/* Page number buttons */}
+                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-white/[0.02] border border-white/5">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => handlePageChange(pageNum)}
+                                                aria-current={currentPage === pageNum ? 'page' : undefined}
+                                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                                                    currentPage === pageNum
+                                                        ? 'bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white shadow-md shadow-purple-500/20 scale-105'
+                                                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                                }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        aria-label="Go to next page"
+                                        className="px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        Next ►
+                                    </button>
+                                </nav>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -144,8 +144,8 @@ export default function TemplateCard({ template, delay = 0 }) {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-transparent to-black/40 pointer-events-none z-10" />
                     
                     {/* Category Badge - Top Left Overlay */}
-                    <div className="absolute top-3 left-3 z-20">
-                        <span className="px-2.5 py-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-md text-[10px] font-semibold text-white/90 shadow-sm">
+                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-20">
+                        <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-md text-[9px] sm:text-[10px] font-semibold text-white/90 shadow-sm">
                             {category}
                         </span>
                     </div>
@@ -153,34 +153,34 @@ export default function TemplateCard({ template, delay = 0 }) {
                     {/* Play Overlay */}
                     {!isHovering && isVideoFile && (
                         <div className="absolute inset-0 flex items-center justify-center transition-opacity z-20 pointer-events-none">
-                            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg">
-                                <Play className="w-4 h-4 text-white ml-0.5 fill-white" />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg">
+                                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white ml-0.5 fill-white" />
                             </div>
                         </div>
                     )}
 
                     {/* Floating Glass Overlay Footer (Video Templates: Hover Reveal | Image Templates: Untouched Static) */}
                     <div 
-                        className={`absolute bottom-0 inset-x-0 p-3 sm:p-3.5 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 to-transparent backdrop-blur-md border-t border-white/10 z-20 transition-all duration-300 flex flex-col justify-end ${
+                        className={`absolute bottom-0 inset-x-0 p-2.5 sm:p-3.5 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 to-transparent backdrop-blur-md border-t border-white/10 z-20 transition-all duration-300 flex flex-col justify-end ${
                             !isImage 
                                 ? 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto' 
                                 : ''
                         }`}
                         style={{ transform: "translateZ(30px)" }}
                     >
-                        <h3 className="text-xs sm:text-sm font-semibold tracking-tight truncate text-white/95 mb-2" title={name}>
+                        <h3 className="text-[11px] sm:text-sm font-semibold tracking-tight truncate text-white/95 mb-1.5 sm:mb-2" title={name}>
                             {name}
                         </h3>
                         
-                        <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-white bg-white/10 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                        <div className="flex justify-between items-center gap-1">
+                            <span className="text-[10px] sm:text-xs font-bold text-white bg-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md backdrop-blur-md border border-white/10">
                                 ₹{Number(price).toFixed(2)}
                             </span>
                             <Link to={`/template/${id}`}>
                                 <motion.button 
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
-                                    className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white text-xs font-semibold shadow-md shadow-purple-500/20"
+                                    className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white text-[10px] sm:text-xs font-semibold shadow-md shadow-purple-500/20 whitespace-nowrap"
                                 >
                                     Use Template
                                 </motion.button>
