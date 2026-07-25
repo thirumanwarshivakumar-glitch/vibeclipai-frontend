@@ -17,9 +17,29 @@ export default function TemplateCard({ template, delay = 0 }) {
     const videoRef = useRef(null);
     const [isHovering, setIsHovering] = useState(false);
 
-    // Use 4:5 for image templates, square 1:1 for videos
+    // Approach 1: Dedicated Format Handling for Video vs Image Templates
     const isImage = template.template_type === 'image' || template.templateType === 'image';
-    const aspectRatio = isImage ? '4/5' : '1/1';
+    
+    const getCardAspectRatio = () => {
+        if (isImage) return '4/5'; // Image Template View: UNTOUCHED & PROPER
+        
+        // Video Template Format Detection
+        if (template.aspect_ratio || template.aspectRatio) {
+            const raw = (template.aspect_ratio || template.aspectRatio).replace(':', '/');
+            if (raw === '9/16') return '4/5'; // Use sleek 4/5 portrait box for Shorts/Reels
+            return raw;
+        }
+        const titleLower = (name || '').toLowerCase();
+        if (titleLower.includes('airport') || titleLower.includes('siddhi') || titleLower.includes('cinematic golden') || titleLower.includes('landscape') || titleLower.includes('16:9')) {
+            return '16/9';
+        }
+        if (titleLower.includes('reels') || titleLower.includes('tiktok') || titleLower.includes('shorts') || titleLower.includes('9:16') || titleLower.includes('kling') || titleLower.includes('rebel') || titleLower.includes('name reveal')) {
+            return '4/5';
+        }
+        return '1/1';
+    };
+
+    const aspectRatio = getCardAspectRatio();
 
     useEffect(() => {
         const card = cardRef.current;
@@ -32,8 +52,8 @@ export default function TemplateCard({ template, delay = 0 }) {
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
 
-            const rotateY = ((x - centerX) / centerX) * 8;
-            const rotateX = ((y - centerY) / centerY) * -8;
+            const rotateY = ((x - centerX) / centerX) * 6;
+            const rotateX = ((y - centerY) / centerY) * -6;
 
             card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
         };
@@ -70,27 +90,34 @@ export default function TemplateCard({ template, delay = 0 }) {
 
     return (
         <motion.div 
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay }}
-            className="flex justify-center"
+            transition={{ duration: 0.5, delay }}
+            className="flex justify-center h-full w-full"
             onMouseEnter={handleMouseEnterCard}
             onMouseLeave={handleMouseLeaveCard}
         >
+            {/* Approach A: Uniform 4:5 Outer Card Shell for 100% Row Baseline Alignment */}
             <div 
                 ref={cardRef} 
-                className="w-full max-w-sm rounded-3xl p-4 sm:p-6 text-white shadow-[0_20px_40px_rgba(0,0,0,0.4)] border border-white/10 transition-transform duration-200 ease-out group"
+                className="w-full aspect-[4/5] rounded-2xl overflow-hidden text-white shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-white/10 transition-transform duration-200 ease-out group relative flex flex-col justify-between bg-[#0a0a0d] h-full"
                 style={{
-                    background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)",
                     backdropFilter: "blur(20px)",
                     transformStyle: "preserve-3d"
                 }}
             >
-                {/* Media Preview */}
+                {/* Ambient Blurred Background Copy (Fills 16:9 top/bottom space with glowing video aura) */}
+                <img 
+                    src={previewImage || previewVideoUrl} 
+                    alt="" 
+                    className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-125 pointer-events-none z-0 transition-opacity duration-500"
+                />
+
+                {/* Media Preview Container - Stage */}
                 <div 
-                    className="w-full rounded-2xl bg-[#111115] mb-6 overflow-hidden relative group-hover:ring-2 ring-[#7C3AED]/50 transition-all flex items-center justify-center" 
-                    style={{ transform: "translateZ(30px)", aspectRatio: aspectRatio }}
+                    className="w-full h-full relative overflow-hidden bg-black/30 flex items-center justify-center group-hover:ring-1 ring-[#7C3AED]/40 transition-all z-10" 
+                    style={{ transform: "translateZ(20px)" }}
                 >
                     {isVideoFile ? (
                         <video
@@ -101,51 +128,64 @@ export default function TemplateCard({ template, delay = 0 }) {
                             autoPlay
                             playsInline
                             preload="metadata"
-                            className="w-full h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                            className={`w-full h-full relative z-10 opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-500 ease-out ${
+                                aspectRatio === '16/9' ? 'object-contain' : 'object-cover object-top'
+                            }`}
                         />
                     ) : (
                         <img 
                             src={previewImage || previewVideoUrl} 
                             alt={name}
-                            className="w-full h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                            className="w-full h-full object-cover object-top relative z-10 opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-500 ease-out"
                         />
                     )}
                     
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                    {/* Dark gradient scrim for overlay text contrast */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-transparent to-black/40 pointer-events-none z-10" />
                     
-                    {/* Category Badge */}
-                    <div className="absolute top-4 left-4">
-                        <span className="px-3 py-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-md text-xs font-semibold text-white/90">
+                    {/* Category Badge - Top Left Overlay */}
+                    <div className="absolute top-3 left-3 z-20">
+                        <span className="px-2.5 py-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-md text-[10px] font-semibold text-white/90 shadow-sm">
                             {category}
                         </span>
                     </div>
 
                     {/* Play Overlay */}
                     {!isHovering && isVideoFile && (
-                        <div className="absolute inset-0 flex items-center justify-center transition-opacity">
-                            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                                <Play className="w-6 h-6 text-white ml-1 fill-white" />
+                        <div className="absolute inset-0 flex items-center justify-center transition-opacity z-20 pointer-events-none">
+                            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg">
+                                <Play className="w-4 h-4 text-white ml-0.5 fill-white" />
                             </div>
                         </div>
                     )}
-                </div>
-                
-                {/* Info block */}
-                <div style={{ transform: "translateZ(40px)" }}>
-                    <h3 className="text-xl sm:text-2xl font-bold mb-2 tracking-tight truncate">{name}</h3>
-                    <p className="text-purple-100/60 text-sm mb-6 line-clamp-2 min-h-[40px]">{description}</p>
-                    
-                    <div className="flex justify-between items-center">
-                        <span className="text-xl font-bold text-white bg-white/10 px-3 py-1 rounded-lg backdrop-blur-md">₹{Number(price).toFixed(2)}</span>
-                        <Link to={`/template/${id}`}>
-                            <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white text-sm font-semibold shadow-lg shadow-purple-500/20"
-                            >
-                                Use Template
-                            </motion.button>
-                        </Link>
+
+                    {/* Floating Glass Overlay Footer (Video Templates: Hover Reveal | Image Templates: Untouched Static) */}
+                    <div 
+                        className={`absolute bottom-0 inset-x-0 p-3 sm:p-3.5 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 to-transparent backdrop-blur-md border-t border-white/10 z-20 transition-all duration-300 flex flex-col justify-end ${
+                            !isImage 
+                                ? 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto' 
+                                : ''
+                        }`}
+                        style={{ transform: "translateZ(30px)" }}
+                    >
+                        <h3 className="text-xs sm:text-sm font-semibold tracking-tight truncate text-white/95 mb-2" title={name}>
+                            {name}
+                        </h3>
+                        
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-white bg-white/10 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                                ₹{Number(price).toFixed(2)}
+                            </span>
+                            <Link to={`/template/${id}`}>
+                                <motion.button 
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white text-xs font-semibold shadow-md shadow-purple-500/20"
+                                >
+                                    Use Template
+                                </motion.button>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>

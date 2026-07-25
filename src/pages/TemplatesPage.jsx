@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Filter, Video, Image as ImageIcon } from 'lucide-react';
 import TemplateCard from '../components/TemplateCard';
+import GalleryFilterBar from '../components/GalleryFilterBar';
 import { fetchTemplates } from '../lib/api';
 
 export default function TemplatesPage() {
@@ -10,6 +11,9 @@ export default function TemplatesPage() {
     const [activeType, setActiveType] = useState('video');
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
+
+    const [sortBy, setSortBy] = useState('recommended');
+    const [priceRange, setPriceRange] = useState('all');
 
     useEffect(() => {
         fetchTemplates()
@@ -37,23 +41,50 @@ export default function TemplatesPage() {
         return ['All', ...Array.from(cats)];
     }, [typeFiltered]);
 
-    // Reset category to All if type changes
+    // Reset category and format if type changes
     useEffect(() => {
         setActiveCategory('All');
+        setPriceRange('all');
+        setSortBy('recommended');
     }, [activeType]);
 
-    // Final filtered list
+    const handleResetAllFilters = () => {
+        setActiveCategory('All');
+        setPriceRange('all');
+        setSortBy('recommended');
+        setSearchQuery('');
+    };
+
+    // Final filtered and sorted list
     const finalFiltered = useMemo(() => {
-        return typeFiltered.filter(t => {
+        let list = typeFiltered.filter(t => {
             const matchesSearch = (t.name || t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
                                   (t.description || '').toLowerCase().includes(searchQuery.toLowerCase());
             
             const templateCategory = t.category || (t.tags && t.tags[0]) || 'General';
             const matchesCategory = activeCategory === 'All' || templateCategory === activeCategory;
 
-            return matchesSearch && matchesCategory;
+            // Price Range Filtering
+            const numPrice = Number(t.price) || 0;
+            let matchesPrice = true;
+            if (priceRange === 'under_100') matchesPrice = numPrice <= 100;
+            else if (priceRange === '100_150') matchesPrice = numPrice >= 100 && numPrice <= 150;
+            else if (priceRange === '150_plus') matchesPrice = numPrice >= 150;
+
+            return matchesSearch && matchesCategory && matchesPrice;
         });
-    }, [typeFiltered, activeCategory, searchQuery]);
+
+        // Price & Attribute Sorting
+        return list.sort((a, b) => {
+            const priceA = Number(a.price) || 0;
+            const priceB = Number(b.price) || 0;
+            if (sortBy === 'price_asc') return priceA - priceB;
+            if (sortBy === 'price_desc') return priceB - priceA;
+            if (sortBy === 'newest') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            if (sortBy === 'popular') return (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0);
+            return 0; // default recommended
+        });
+    }, [typeFiltered, activeCategory, searchQuery, activeType, priceRange, sortBy]);
 
     return (
         <div className="min-h-screen pt-24 pb-12 w-full text-white">
@@ -122,7 +153,8 @@ export default function TemplatesPage() {
                     </motion.div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mb-12 border-b border-white/10 pb-6">
+                {/* Categories */}
+                <div className="flex flex-wrap gap-2 mb-6 border-b border-white/10 pb-6">
                     {categories.map((cat, i) => (
                         <motion.button
                             key={cat}
@@ -140,6 +172,20 @@ export default function TemplatesPage() {
                         </motion.button>
                     ))}
                 </div>
+
+                {/* E-Commerce Gallery Filter & Sorting Toolbar */}
+                <GalleryFilterBar 
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                    priceRange={priceRange}
+                    setPriceRange={setPriceRange}
+                    activeCategory={activeCategory}
+                    setActiveCategory={setActiveCategory}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    totalResults={finalFiltered.length}
+                    onResetAll={handleResetAllFilters}
+                />
 
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
@@ -164,10 +210,21 @@ export default function TemplatesPage() {
                         )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        {finalFiltered.map((template, index) => (
-                            <TemplateCard key={template.id} template={template} delay={(index % 4) * 0.1} />
-                        ))}
+                    <div className="relative">
+                        {/* Mobile swipe indicator hint */}
+                        <div className="sm:hidden flex items-center justify-between text-[11px] font-medium text-purple-300/70 mb-3 px-1">
+                            <span>Swipe to explore templates</span>
+                            <span>{finalFiltered.length} Available</span>
+                        </div>
+
+                        {/* Hybrid Layout Container - Top Aligned Items */}
+                        <div className="flex sm:grid overflow-x-auto snap-x snap-mandatory gap-4 pb-4 sm:pb-0 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-5">
+                            {finalFiltered.map((template, index) => (
+                                <div key={template.id} className="flex-shrink-0 w-[78vw] max-w-[280px] snap-center sm:w-auto sm:max-w-none h-full">
+                                    <TemplateCard template={template} delay={(index % 5) * 0.08} />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
