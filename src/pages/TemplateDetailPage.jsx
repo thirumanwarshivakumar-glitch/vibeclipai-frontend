@@ -75,7 +75,7 @@ export default function TemplateDetailPage() {
 
     const requiresUserImage = !!(template?.allow_user_image_upload) || isKlingMotionControl;
     const requiresUserVideo = !!(template?.allow_user_video_upload);
-    const inputSchema = template.input_schema || [];
+    const inputSchema = (template.input_schema || []).filter(f => f && f.key && String(f.key).trim() !== '');
     const maxUploads = template?.max_user_uploads || template?.maxUserUploads || 1;
 
     const includesMap = {

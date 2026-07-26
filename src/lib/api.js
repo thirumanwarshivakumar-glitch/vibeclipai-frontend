@@ -46,7 +46,7 @@ export async function fetchTemplates(options = {}) {
             templatesCache = data;
             lastFetchTime = Date.now();
             try {
-                sessionStorage.setItem('vibeclips_templates_v3', JSON.stringify(data));
+                sessionStorage.setItem('vibeclips_templates_v6', JSON.stringify(data));
             } catch (e) {}
             return data;
         }
@@ -54,7 +54,7 @@ export async function fetchTemplates(options = {}) {
         console.warn('fetchTemplates network/timeout warning:', err.message);
         // Fallback to sessionStorage cache if network fails or times out
         try {
-            const stored = sessionStorage.getItem('vibeclips_templates_v3');
+            const stored = sessionStorage.getItem('vibeclips_templates_v6');
             if (stored) {
                 const parsed = JSON.parse(stored);
                 templatesCache = parsed;
