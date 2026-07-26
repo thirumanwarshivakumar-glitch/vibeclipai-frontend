@@ -92,14 +92,26 @@ export default async function (req) {
                     const isImageOnly = currentOrder?.template_type === 'image';
                     const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
-                    await client.database
+                    // ⚡ ATOMIC CONCURRENCY LOCK: Update ONLY if payment_status is still 'pending'
+                    const { data: updatedOrders } = await client.database
                         .from('orders')
                         .update({ 
                             payment_status: 'paid', 
                             generation_status: startStatus, 
                             updated_at: new Date().toISOString() 
                         })
-                        .eq('id', orderId);
+                        .eq('id', orderId)
+                        .eq('payment_status', 'pending')
+                        .select();
+
+                    // If no rows updated, another concurrent thread (Frontend AJAX) already claimed the lock!
+                    if (!updatedOrders || updatedOrders.length === 0) {
+                        console.log(`[LOCK] Order ${orderId} already claimed by concurrent thread in webhook. Skipping duplicate execution.`);
+                        return new Response(JSON.stringify({ success: true, message: 'Already claimed by concurrent thread' }), {
+                            status: 200,
+                            headers: corsHeaders
+                        });
+                    }
 
                     // Determine Router (matches verify-razorpay-payment.js and process-order.js)
                     const getTargetFunction = (type, currentModel) => {

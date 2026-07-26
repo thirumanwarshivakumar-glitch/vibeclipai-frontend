@@ -173,12 +173,24 @@ export default async function (req) {
                 // OR if there's a reference image AND it's not a direct video model
                 const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
-                const { error: updateErr } = await client.database
+                // ⚡ ATOMIC CONCURRENCY LOCK: Update ONLY if payment_status is still 'pending'
+                const { data: updatedOrders, error: updateErr } = await client.database
                     .from('orders')
                     .update({ payment_status: 'paid', generation_status: startStatus, updated_at: new Date().toISOString() })
-                    .eq('id', orderId);
+                    .eq('id', orderId)
+                    .eq('payment_status', 'pending')
+                    .select();
 
                 if (updateErr) console.error('Update payment error:', updateErr);
+
+                // If no rows updated, another concurrent thread (Webhook/AJAX) already claimed the lock!
+                if (!updatedOrders || updatedOrders.length === 0) {
+                    console.log(`[LOCK] Order ${orderId} already claimed by concurrent thread in process-order. Skipping duplicate execution.`);
+                    return new Response(JSON.stringify({ success: true, message: 'Already claimed by concurrent thread' }), {
+                        status: 200,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                }
 
                 // Determine Router
                 const getTargetFunction = (type, currentModel) => {
