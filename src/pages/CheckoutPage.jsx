@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, Upload, Video, X, ShieldCheck, Mail, ArrowRight, Camera } from 'lucide-react';
 import { useUser } from '@insforge/react';
 import { createOrder, createStripeCheckout, uploadUserImage, uploadUserVideo, createRazorpayOrder, verifyRazorpayPayment, fileToBase64 } from '../lib/api';
+import { compressImage } from '../lib/imageCompressor';
 
 export default function CheckoutPage() {
     const location = useLocation();
@@ -63,7 +64,7 @@ export default function CheckoutPage() {
         return () => document.body.removeChild(script);
     }, []);
 
-    const handleUserImageSelect = (e) => {
+    const handleUserImageSelect = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
@@ -73,16 +74,24 @@ export default function CheckoutPage() {
         let errors = [];
 
         for (const file of files) {
-            if (!file.type.startsWith('image/')) {
+            const isImageType = file.type?.startsWith('image/') || file.type === '';
+            const hasImageExt = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.name || '');
+
+            if (!isImageType && !hasImageExt) {
                 errors.push('Please select a JPEG, PNG, or JPG image.');
                 continue;
             }
-            if (file.size > 10 * 1024 * 1024) {
-                errors.push('Images must be under 10MB.');
-                continue;
+
+            try {
+                // Compress camera selfies in browser memory if large
+                const processedFile = await compressImage(file);
+                validFiles.push(processedFile);
+                validPreviews.push(URL.createObjectURL(processedFile));
+            } catch (err) {
+                console.warn('Image processing warning:', err);
+                validFiles.push(file);
+                validPreviews.push(URL.createObjectURL(file));
             }
-            validFiles.push(file);
-            validPreviews.push(URL.createObjectURL(file));
         }
 
         if (errors.length > 0) setImageUploadError(errors[0]);

@@ -1,7 +1,7 @@
 import { useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { getOrderStatus, confirmPayment, confirmImage, resendEmail } from '../lib/api';
-import { generateCaption, CAPTION_PRESETS } from '../lib/captionEngine';
+import { generateCaption } from '../lib/captionEngine';
 import { useNativeShare } from '../hooks/useNativeShare';
 
 const defaultSteps = [
@@ -77,14 +77,14 @@ export default function SuccessPage() {
     const [confirming, setConfirming] = useState(false);
 
     // Caption & Sharing State
-    const [captionStyle, setCaptionStyle] = useState('luxury');
+    // Caption & Sharing State
     const [captionCopied, setCaptionCopied] = useState(false);
     const { share: nativeShare, isSupported: canNativeShare, isSharing } = useNativeShare();
 
     const pollingRef = useRef(null);
     const confirmedRef = useRef(false);
 
-    const activeCaption = generateCaption(orderData?.templates || stateTemplate, orderData?.form_values || {}, captionStyle);
+    const activeCaption = generateCaption(orderData?.templates || stateTemplate, orderData?.form_values || {});
 
     const handleCopyCaption = async () => {
         try {
@@ -386,32 +386,12 @@ export default function SuccessPage() {
                             )}
                         </div>
 
-                        {/* Copy Caption Engine Section (Desktop & Mobile) */}
+                        {/* Copy Caption Section (Desktop & Mobile) */}
                         <div style={{ paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', items: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span>📋 Social Caption Style:</span>
-                                    <select
-                                        value={captionStyle}
-                                        onChange={(e) => setCaptionStyle(e.target.value)}
-                                        style={{
-                                            background: 'rgba(255,255,255,0.08)',
-                                            color: '#ffffff',
-                                            border: '1px solid rgba(255,255,255,0.15)',
-                                            borderRadius: '6px',
-                                            padding: '4px 8px',
-                                            fontSize: '0.78rem',
-                                            outline: 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        {CAPTION_PRESETS.map(preset => (
-                                            <option key={preset.id} value={preset.id} style={{ background: '#121216', color: '#fff' }}>
-                                                {preset.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    📋 Personalized Social Caption:
+                                </span>
 
                                 <button
                                     onClick={handleCopyCaption}
@@ -419,9 +399,9 @@ export default function SuccessPage() {
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: 6,
-                                        padding: '6px 14px',
+                                        padding: '7px 16px',
                                         borderRadius: '8px',
-                                        fontSize: '0.78rem',
+                                        fontSize: '0.8rem',
                                         fontWeight: 600,
                                         background: captionCopied ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.08)',
                                         color: captionCopied ? '#4ade80' : 'var(--text-primary)',
@@ -436,15 +416,15 @@ export default function SuccessPage() {
 
                             {/* Caption Preview Box */}
                             <div style={{
-                                padding: '10px 14px',
+                                padding: '12px 16px',
                                 background: 'rgba(0,0,0,0.3)',
-                                borderRadius: '8px',
+                                borderRadius: '10px',
                                 border: '1px solid rgba(255,255,255,0.06)',
-                                fontSize: '0.78rem',
-                                color: 'rgba(255,255,255,0.8)',
+                                fontSize: '0.82rem',
+                                color: 'rgba(255,255,255,0.85)',
                                 whiteSpace: 'pre-wrap',
                                 fontFamily: 'inherit',
-                                lineHeight: '1.4',
+                                lineHeight: '1.5',
                             }}>
                                 {activeCaption}
                             </div>

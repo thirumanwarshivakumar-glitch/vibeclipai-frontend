@@ -1,16 +1,10 @@
 /**
- * Dynamic Caption Generation Engine for VibeClipAI
- * Formats personalized social media captions based on template metadata and user form inputs.
+ * Dynamic Template-Specific Caption Generation Engine for VibeClipAI
+ * Replaces placeholders inside the Admin-defined `caption_skeleton` with customer form inputs.
  */
 
-export const CAPTION_PRESETS = [
-    { id: 'luxury', name: 'Luxury & Romantic' },
-    { id: 'minimal', name: 'Minimalist' },
-    { id: 'playful', name: 'Playful & Avatar' },
-];
-
-export function generateCaption(template, formValues = {}, style = 'luxury') {
-    const templateName = template?.name || 'AI Artwork';
+export function generateCaption(template, formValues = {}) {
+    const skeleton = template?.caption_skeleton || template?.captionSkeleton;
 
     // Extract dynamic input variables
     const bride = formValues.BRIDE_NAME || formValues.bride_name || '';
@@ -19,26 +13,28 @@ export function generateCaption(template, formValues = {}, style = 'luxury') {
     const date = formValues.MARRIAGE_DATE || formValues.EVENT_DATE || formValues.IMPORTANT_DATE || formValues.event_date || '';
     const name = formValues.NAME || formValues.USER_NAME || formValues.CharacterName || '';
 
-    const brandLine = 'Created with VibeClipAI ✨\nhttps://vibeclipsai.com';
+    // If Admin defined a custom caption skeleton for this template
+    if (skeleton && skeleton.trim().length > 0) {
+        let text = skeleton;
 
-    if (style === 'minimal') {
-        let text = `Saved the Date. 🤍`;
-        if (couple) text += ` ${couple}`;
-        if (date) text += ` (${date})`;
-        return `${text}\n\n@VibeClipAI ✨\nhttps://vibeclipsai.com`;
+        // Perform variable substitution
+        text = text.replace(/\{BRIDE_NAME\}/gi, bride || 'Bride');
+        text = text.replace(/\{GROOM_NAME\}/gi, groom || 'Groom');
+        text = text.replace(/\{COUPLE_NAMES\}/gi, couple || (bride && groom ? `${bride} & ${groom}` : 'Couple'));
+        text = text.replace(/\{MARRIAGE_DATE\}/gi, date || 'Save The Date');
+        text = text.replace(/\{EVENT_DATE\}/gi, date || 'Save The Date');
+        text = text.replace(/\{IMPORTANT_DATE\}/gi, date || 'Save The Date');
+        text = text.replace(/\{NAME\}/gi, name || 'User');
+        text = text.replace(/\{USER_NAME\}/gi, name || 'User');
+        text = text.replace(/\{CharacterName\}/gi, name || 'User');
+
+        return text.trim();
     }
 
-    if (style === 'playful') {
-        let text = `Unlocked my custom AI avatar! 🎨✨`;
-        if (name) text = `Unlocked ${name}'s custom AI avatar! 🎨✨`;
-        if (couple) text = `Our AI portrait brought to life! 😍 ${couple}`;
-        return `${text}\n\nTry yours on VibeClipAI 👇\nhttps://vibeclipsai.com\n\n#VibeClipAI #AIArt #MiniMe #ViralAI`;
-    }
+    // Default Fallback if no custom caption skeleton is defined in Admin
+    let header = `✨ Check out my custom AI artwork! 🎨`;
+    if (couple) header = `✨ Our love story brought to life! 💍\n${couple}`;
+    if (date && couple) header += ` | ${date} 🗓️`;
 
-    // Default: Luxury & Romantic
-    let header = `✨ Our love story brought to life! 💍`;
-    if (couple) header += `\n${couple}`;
-    if (date) header += ` | ${date} 🗓️`;
-
-    return `${header}\n\n${brandLine}\n\n#VibeClipAI #SaveTheDate #WeddingVibes #AIWedding #CoupleGoals`;
+    return `${header}\n\nCreated with VibeClipAI ✨\nhttps://vibeclipsai.com\n\n#VibeClipAI #AIArt #ViralAI`;
 }

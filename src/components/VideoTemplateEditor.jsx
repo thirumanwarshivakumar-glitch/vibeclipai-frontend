@@ -215,6 +215,7 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 maxUserUploads: template.max_user_uploads ?? template.maxUserUploads ?? 1,
                 imagePromptSkeleton: template.imagePromptSkeleton || template.image_prompt_skeleton || '',
                 videoPromptSkeleton: template.videoPromptSkeleton || template.video_prompt_skeleton || '',
+                captionSkeleton: template.caption_skeleton || template.captionSkeleton || '',
                 referenceImageUrl: template.reference_image_url || template.referenceImageUrl || '',
                 referenceVideoUrl: template.reference_video_url || template.referenceVideoUrl || '',
                 inputSchema: template.inputSchema || template.input_schema || [{ ...emptyField }],
@@ -231,6 +232,7 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 maxUserUploads: 1,
                 imagePromptSkeleton: '',
                 videoPromptSkeleton: '',
+                captionSkeleton: '',
                 referenceImageUrl: '',
                 referenceVideoUrl: '',
                 inputSchema: [{ ...emptyField }],
@@ -370,6 +372,7 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 maxUserUploads,
                 imagePromptSkeleton,
                 videoPromptSkeleton,
+                captionSkeleton,
                 referenceImageUrl,
                 referenceVideoUrl,
                 inputSchema,
@@ -399,6 +402,7 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 reference_image_url: referenceImageUrl,
                 image_prompt_skeleton: imagePromptSkeleton,
                 video_prompt_skeleton: videoPromptSkeleton,
+                caption_skeleton: captionSkeleton,
                 input_schema: inputSchema,
                 is_favorite: isFavorite,
             });
@@ -486,6 +490,21 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                             </div>
                         ))}
                         <button className="btn btn-secondary btn-sm" type="button" onClick={addSchemaField}>+ Add Input Field</button>
+                    </div>
+
+                    {/* Caption Skeleton */}
+                    <div className="form-group">
+                        <label className="form-label">Caption Skeleton (Social Media)</label>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                            Define the default social media copy for this template (use variables like {"{BRIDE_NAME}"}, {"{MARRIAGE_DATE}"}, {"{COUPLE_NAMES}"}).
+                        </p>
+                        <textarea
+                            className="form-textarea"
+                            value={form.captionSkeleton}
+                            onChange={(e) => updateField('captionSkeleton', e.target.value)}
+                            rows={4}
+                            placeholder="e.g. ✨ Our official Save The Date! 💍&#10;{BRIDE_NAME} & {GROOM_NAME} | {MARRIAGE_DATE} 🗓️&#10;&#10;Created with VibeClipAI ✨"
+                        />
                     </div>
 
                     {/* Category & Tags & Pricing */}

@@ -15,6 +15,7 @@ export default function ImageTemplateEditor({ template, onSave, onClose }) {
                 templateType: 'image',
                 allowUserImageUpload: template.allow_user_image_upload ?? template.allowUserImageUpload ?? false,
                 imagePromptSkeleton: template.imagePromptSkeleton || template.image_prompt_skeleton || '',
+                captionSkeleton: template.caption_skeleton || template.captionSkeleton || '',
                 inputSchema: template.inputSchema || template.input_schema || [{ ...emptyField }],
                 isFavorite: template.is_favorite ?? template.isFavorite ?? false,
                 referenceImageUrl: template.reference_image_url || template.referenceImageUrl || '',
@@ -28,6 +29,7 @@ export default function ImageTemplateEditor({ template, onSave, onClose }) {
                 templateType: 'image',
                 allowUserImageUpload: false,
                 imagePromptSkeleton: '',
+                captionSkeleton: '',
                 inputSchema: [{ ...emptyField }],
                 referenceImageUrl: '',
                 isFavorite: false,
@@ -154,6 +156,7 @@ export default function ImageTemplateEditor({ template, onSave, onClose }) {
                 templateType,
                 allowUserImageUpload,
                 imagePromptSkeleton,
+                captionSkeleton,
                 inputSchema,
                 referenceImageUrl,
                 isFavorite,
@@ -177,6 +180,7 @@ export default function ImageTemplateEditor({ template, onSave, onClose }) {
                 currency: currency,
                 allow_user_image_upload: allowUserImageUpload,
                 image_prompt_skeleton: imagePromptSkeleton,
+                caption_skeleton: captionSkeleton,
                 input_schema: inputSchema,
                 reference_image_url: referenceImageUrl,
                 is_favorite: isFavorite,
@@ -325,6 +329,21 @@ export default function ImageTemplateEditor({ template, onSave, onClose }) {
                             placeholder="Prompt for generating the image"
                         />
                         {errors.imagePromptSkeleton && <small style={{ color: 'var(--danger)' }}>{errors.imagePromptSkeleton}</small>}
+                    </div>
+
+                    {/* Caption Skeleton */}
+                    <div className="form-group">
+                        <label className="form-label">Caption Skeleton (Social Media)</label>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                            Define the default social media copy for this template (use variables like {"{BRIDE_NAME}"}, {"{MARRIAGE_DATE}"}, {"{COUPLE_NAMES}"}).
+                        </p>
+                        <textarea
+                            className="form-textarea"
+                            value={form.captionSkeleton}
+                            onChange={(e) => updateField('captionSkeleton', e.target.value)}
+                            rows={4}
+                            placeholder="e.g. ✨ Our official Save The Date! 💍&#10;{BRIDE_NAME} & {GROOM_NAME} | {MARRIAGE_DATE} 🗓️&#10;&#10;Created with VibeClipAI ✨"
+                        />
                     </div>
 
                     <div className="form-group">
