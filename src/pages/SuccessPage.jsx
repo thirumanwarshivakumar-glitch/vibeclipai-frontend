@@ -1,6 +1,8 @@
 import { useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { getOrderStatus, confirmPayment, confirmImage, resendEmail } from '../lib/api';
+import { generateCaption, CAPTION_PRESETS } from '../lib/captionEngine';
+import { useNativeShare } from '../hooks/useNativeShare';
 
 const defaultSteps = [
     { key: 'paid', label: 'Payment Confirmed', icon: '✓' },
@@ -74,8 +76,34 @@ export default function SuccessPage() {
     const [genFailed, setGenFailed] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
+    // Caption & Sharing State
+    const [captionStyle, setCaptionStyle] = useState('luxury');
+    const [captionCopied, setCaptionCopied] = useState(false);
+    const { share: nativeShare, isSupported: canNativeShare, isSharing } = useNativeShare();
+
     const pollingRef = useRef(null);
     const confirmedRef = useRef(false);
+
+    const activeCaption = generateCaption(orderData?.templates || stateTemplate, orderData?.form_values || {}, captionStyle);
+
+    const handleCopyCaption = async () => {
+        try {
+            await navigator.clipboard.writeText(activeCaption);
+            setCaptionCopied(true);
+            setTimeout(() => setCaptionCopied(false), 2500);
+        } catch (err) {
+            console.error('Failed to copy caption:', err);
+        }
+    };
+
+    const handleNativeShare = async () => {
+        const targetMediaUrl = isImageOnlyTemplate ? (orderData?.video_url || orderData?.generated_image_url) : orderData?.video_url;
+        await nativeShare({
+            imageUrl: targetMediaUrl,
+            title: orderData?.templates?.name || stateTemplate?.name || 'VibeClipAI Artwork',
+            text: activeCaption,
+        });
+    };
 
     // Determine current steps mapping dynamically
     // Use both state and polled data for type check, checking both case conventions
@@ -316,19 +344,111 @@ export default function SuccessPage() {
 
                 {/* Result Display when completed */}
                 {isCompleted && (orderData?.video_url || orderData?.generated_image_url) && !orderData?.video_url?.startsWith('kie:') && (
-                    <div style={{ marginBottom: 24, padding: '16px 24px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                        <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>
-                            {isImageOnlyTemplate ? '🖼️ Your image is ready:' : '🎬 Your video is ready:'}
+                    <div style={{ marginBottom: 24, padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
+                            {isImageOnlyTemplate ? '🖼️ Your AI Image is ready!' : '🎬 Your AI Video is ready!'}
                         </p>
-                        <a
-                            href={isImageOnlyTemplate ? (orderData.video_url || orderData.generated_image_url) : orderData.video_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-primary"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                        >
-                            {isImageOnlyTemplate ? '📥 Download Image' : '📥 Download Video'}
-                        </a>
+
+                        {/* Primary Action Row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                            <a
+                                href={isImageOnlyTemplate ? (orderData.video_url || orderData.generated_image_url) : orderData.video_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-primary"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: '9999px', fontSize: '0.85rem', fontWeight: 600 }}
+                            >
+                                {isImageOnlyTemplate ? '📥 Download Image' : '📥 Download Video'}
+                            </a>
+
+                            {/* 1-Tap Mobile Native Share (Mobile Viewports Only) */}
+                            {canNativeShare && (
+                                <button
+                                    onClick={handleNativeShare}
+                                    disabled={isSharing}
+                                    className="btn sm:hidden"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        padding: '10px 20px',
+                                        borderRadius: '9999px',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 600,
+                                        background: 'linear-gradient(135deg, #7C3AED, #EC4899)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+                                    }}
+                                >
+                                    {isSharing ? '⏳ Preparing...' : '🚀 Share to Instagram / Facebook'}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Copy Caption Engine Section (Desktop & Mobile) */}
+                        <div style={{ paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', items: 'center', justifyContent: 'space-between', gap: 10 }}>
+                                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>📋 Social Caption Style:</span>
+                                    <select
+                                        value={captionStyle}
+                                        onChange={(e) => setCaptionStyle(e.target.value)}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)',
+                                            color: '#ffffff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            borderRadius: '6px',
+                                            padding: '4px 8px',
+                                            fontSize: '0.78rem',
+                                            outline: 'none',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {CAPTION_PRESETS.map(preset => (
+                                            <option key={preset.id} value={preset.id} style={{ background: '#121216', color: '#fff' }}>
+                                                {preset.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <button
+                                    onClick={handleCopyCaption}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '6px 14px',
+                                        borderRadius: '8px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        background: captionCopied ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                                        color: captionCopied ? '#4ade80' : 'var(--text-primary)',
+                                        border: captionCopied ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                                        transition: 'all 0.2s ease',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {captionCopied ? '✓ Copied to Clipboard!' : '📋 Copy Caption'}
+                                </button>
+                            </div>
+
+                            {/* Caption Preview Box */}
+                            <div style={{
+                                padding: '10px 14px',
+                                background: 'rgba(0,0,0,0.3)',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(255,255,255,0.06)',
+                                fontSize: '0.78rem',
+                                color: 'rgba(255,255,255,0.8)',
+                                whiteSpace: 'pre-wrap',
+                                fontFamily: 'inherit',
+                                lineHeight: '1.4',
+                            }}>
+                                {activeCaption}
+                            </div>
+                        </div>
                     </div>
                 )}
 
