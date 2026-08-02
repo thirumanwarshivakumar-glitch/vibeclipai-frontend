@@ -37,9 +37,22 @@ export default async function (req) {
         const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
         // Submit
-        if (action === 'submit' || (action === 'poll' && order.generation_status === 'generating' && !order.video_task_id)) {
+        if (action === 'submit') {
+            if (order.video_task_id === 'SUBMITTING') {
+                console.log('[GEN-KLING-V2] Submission already in progress. Skipping duplicate submit.');
+                return new Response(JSON.stringify({ success: true, message: 'Submission in progress' }), { status: 200, headers: corsHeaders });
+            }
+            if (order.video_task_id && order.video_task_id !== 'SUBMITTING') {
+                console.log(`[GEN-KLING-V2] Task already exists (${order.video_task_id}). Skipping resubmit.`);
+                return new Response(JSON.stringify({ success: true, taskId: order.video_task_id }), { status: 200, headers: corsHeaders });
+            }
+
             console.log(`[GEN-KLING-V2] Submitting Kling request...`);
-            
+            await client.database
+                .from('orders')
+                .update({ video_task_id: 'SUBMITTING' })
+                .eq('id', orderId);
+
             const motionVideoUrl = order.user_video_url || template?.reference_video_url;
             const referenceImageUrl = order.reference_image_url || order.generated_image_url;
             const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
@@ -87,7 +100,7 @@ export default async function (req) {
         }
 
         // Poll
-        if (action === 'poll' && order.video_task_id) {
+        if (action === 'poll' && order.video_task_id && order.video_task_id !== 'SUBMITTING') {
             console.log(`[GEN-KLING-V2] Polling status for taskId: ${order.video_task_id}`);
             const statusRes = await fetch(`${KIE_BASE_URL}/jobs/recordInfo?taskId=${order.video_task_id}`, {
                 headers: { 'Authorization': `Bearer ${KIE_API_KEY}` }

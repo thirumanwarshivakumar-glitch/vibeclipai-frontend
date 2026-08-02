@@ -36,8 +36,21 @@ export default async function (req) {
         const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
         // Submit
-        if (action === 'submit' || (action === 'poll' && order.generation_status === 'generating_image' && !order.image_task_id)) {
+        if (action === 'submit') {
+            if (order.image_task_id === 'SUBMITTING') {
+                console.log('[GEN-IMAGE-NANO-V2] Submission already in progress. Skipping duplicate submit.');
+                return new Response(JSON.stringify({ success: true, message: 'Submission in progress' }), { status: 200, headers: corsHeaders });
+            }
+            if (order.image_task_id && order.image_task_id !== 'SUBMITTING') {
+                console.log(`[GEN-IMAGE-NANO-V2] Task already exists (${order.image_task_id}). Skipping resubmit.`);
+                return new Response(JSON.stringify({ success: true, taskId: order.image_task_id }), { status: 200, headers: corsHeaders });
+            }
+
             console.log(`[GEN-IMAGE-NANO-V2] Submitting Nano Banana request...`);
+            await client.database
+                .from('orders')
+                .update({ image_task_id: 'SUBMITTING' })
+                .eq('id', orderId);
             
             const prompt = order.constructed_prompt || order.constructed_image_prompt || "Generation";
             const ratio = order.aspect_ratio || "1:1";
@@ -98,8 +111,8 @@ export default async function (req) {
             }
         }
 
-        // Poll (only if it was async)
-        if (action === 'poll' && order.image_task_id) {
+        // Poll (only if it was async and task_id is valid)
+        if (action === 'poll' && order.image_task_id && order.image_task_id !== 'SUBMITTING') {
             console.log(`[GEN-IMAGE-NANO-V2] Polling status for taskId: ${order.image_task_id}`);
             const statusRes = await fetch(`${KIE_BASE_URL}/jobs/recordInfo?taskId=${order.image_task_id}`, {
                 headers: { 'Authorization': `Bearer ${KIE_API_KEY}` }
