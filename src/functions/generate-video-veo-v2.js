@@ -37,20 +37,23 @@ export default async function (req) {
 
         // Submit
         if (action === 'submit') {
-            if (order.video_task_id === 'SUBMITTING') {
-                console.log('[GEN-VEO-V2] Submission already in progress. Skipping duplicate submit.');
-                return new Response(JSON.stringify({ success: true, message: 'Submission in progress' }), { status: 200, headers: corsHeaders });
-            }
-            if (order.video_task_id && order.video_task_id !== 'SUBMITTING') {
-                console.log(`[GEN-VEO-V2] Task already exists (${order.video_task_id}). Skipping resubmit.`);
-                return new Response(JSON.stringify({ success: true, taskId: order.video_task_id }), { status: 200, headers: corsHeaders });
+            // ⚡ ATOMIC DB LOCK: Claim lock ONLY IF video_task_id is currently NULL
+            const { data: lockResult } = await client.database
+                .from('orders')
+                .update({ 
+                    video_task_id: 'SUBMITTING',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', orderId)
+                .is('video_task_id', null)
+                .select();
+
+            if (!lockResult || lockResult.length === 0) {
+                console.log(`[GEN-VEO-V2] [LOCK] Order ${orderId} already locked/claimed by parallel thread. Skipping.`);
+                return new Response(JSON.stringify({ success: true, message: 'Already claimed by concurrent thread' }), { status: 200, headers: corsHeaders });
             }
 
-            console.log(`[GEN-VEO-V2] Submitting Veo request...`);
-            await client.database
-                .from('orders')
-                .update({ video_task_id: 'SUBMITTING' })
-                .eq('id', orderId);
+            console.log(`[GEN-VEO-V2] [LOCK ACQUIRED] Submitting Veo request...`);
 
             const referenceImageUrl = order.reference_image_url || order.generated_image_url;
             const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";

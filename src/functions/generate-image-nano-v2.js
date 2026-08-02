@@ -37,20 +37,23 @@ export default async function (req) {
 
         // Submit
         if (action === 'submit') {
-            if (order.image_task_id === 'SUBMITTING') {
-                console.log('[GEN-IMAGE-NANO-V2] Submission already in progress. Skipping duplicate submit.');
-                return new Response(JSON.stringify({ success: true, message: 'Submission in progress' }), { status: 200, headers: corsHeaders });
-            }
-            if (order.image_task_id && order.image_task_id !== 'SUBMITTING') {
-                console.log(`[GEN-IMAGE-NANO-V2] Task already exists (${order.image_task_id}). Skipping resubmit.`);
-                return new Response(JSON.stringify({ success: true, taskId: order.image_task_id }), { status: 200, headers: corsHeaders });
+            // ⚡ ATOMIC DB LOCK: Claim lock ONLY IF image_task_id is currently NULL
+            const { data: lockResult } = await client.database
+                .from('orders')
+                .update({ 
+                    image_task_id: 'SUBMITTING',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', orderId)
+                .is('image_task_id', null)
+                .select();
+
+            if (!lockResult || lockResult.length === 0) {
+                console.log(`[GEN-IMAGE-NANO-V2] [LOCK] Order ${orderId} already locked/claimed by parallel thread. Skipping.`);
+                return new Response(JSON.stringify({ success: true, message: 'Already claimed by concurrent thread' }), { status: 200, headers: corsHeaders });
             }
 
-            console.log(`[GEN-IMAGE-NANO-V2] Submitting Nano Banana request...`);
-            await client.database
-                .from('orders')
-                .update({ image_task_id: 'SUBMITTING' })
-                .eq('id', orderId);
+            console.log(`[GEN-IMAGE-NANO-V2] [LOCK ACQUIRED] Submitting Nano Banana request...`);
             
             const prompt = order.constructed_prompt || order.constructed_image_prompt || "Generation";
             const ratio = order.aspect_ratio || "1:1";
