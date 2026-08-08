@@ -13,32 +13,25 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
 export async function fetchTemplates(options = {}) {
     const now = Date.now();
     
-    // Serve from in-memory cache instantly if fresh
+    // Serve from in-memory master cache instantly if fresh
     if (templatesCache && (now - lastFetchTime < CACHE_TTL_MS) && !options.forceRefresh) {
-        if (options.isFavorite) {
-            return templatesCache.filter(t => t.is_favorite);
-        }
-        return templatesCache;
+        return options.isFavorite ? templatesCache.filter(t => t.is_favorite) : templatesCache;
     }
 
     try {
-        // Lightweight selective query: exclude prompt skeletons & heavy schemas for fast 150ms gallery load
-        let query = insforge.database
+        // Master query: always fetch all active templates so cache is never partially polluted
+        const query = insforge.database
             .from('templates')
             .select('id, name, description, category, price, template_type, preview_video_url, preview_image, reference_image_url, default_aspect_ratio, is_favorite, created_at, tags, status')
-            .eq('status', 'active');
-
-        if (options.isFavorite) {
-            query = query.eq('is_favorite', true);
-        }
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
 
         // 3.5-second timeout safeguard to prevent hanging loading screens
-        const fetchPromise = query.order('created_at', { ascending: false });
         const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Fetch timeout')), 3500)
         );
 
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        const { data, error } = await Promise.race([query, timeoutPromise]);
 
         if (error) throw new Error(error.message);
 
@@ -48,7 +41,7 @@ export async function fetchTemplates(options = {}) {
             try {
                 sessionStorage.setItem('vibeclips_templates_v6', JSON.stringify(data));
             } catch (e) {}
-            return data;
+            return options.isFavorite ? data.filter(t => t.is_favorite) : data;
         }
     } catch (err) {
         console.warn('fetchTemplates network/timeout warning:', err.message);
@@ -58,12 +51,14 @@ export async function fetchTemplates(options = {}) {
             if (stored) {
                 const parsed = JSON.parse(stored);
                 templatesCache = parsed;
-                return parsed;
+                return options.isFavorite ? parsed.filter(t => t.is_favorite) : parsed;
             }
         } catch (e) {}
         
-        // If cache is present, return it even if expired
-        if (templatesCache) return templatesCache;
+        // If cache is present, return filtered result even if expired
+        if (templatesCache) {
+            return options.isFavorite ? templatesCache.filter(t => t.is_favorite) : templatesCache;
+        }
         throw err;
     }
 

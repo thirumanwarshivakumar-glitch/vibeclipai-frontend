@@ -8,7 +8,7 @@ import { fetchTemplates } from '../lib/api';
 export default function TemplatesPage() {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeType, setActiveType] = useState('image');
+    const [activeType, setActiveType] = useState('video');
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
 
