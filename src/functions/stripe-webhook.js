@@ -36,17 +36,21 @@ export default async function (req: Request): Promise<Response> {
 
             const { data: order } = await client.database
                 .from('orders')
-                .select('*, templates(*)')
+                .select('*')
                 .eq('id', orderId)
                 .single();
             
-            let template = order?.templates;
-            if (Array.isArray(template)) template = template[0];
-            if ((!template || !template.ai_model) && order?.template_id) {
+            let template = null;
+            if (order?.template_id) {
                 const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
                 if (t) template = t;
             }
-            const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+
+            let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+            if (!aiModel) {
+                if (order?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
+                else if (order?.form_values?.kling_video_url) aiModel = 'kling_3_0_v2';
+            }
             const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
             const hasRefImage = !!order?.reference_image_url;

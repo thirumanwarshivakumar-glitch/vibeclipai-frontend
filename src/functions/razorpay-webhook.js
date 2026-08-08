@@ -78,18 +78,22 @@ export default async function (req) {
                 // Check current status before updating to avoid duplicate runs
                 const { data: currentOrder, error: checkErr } = await client.database
                     .from('orders')
-                    .select('*, templates(*)')
+                    .select('*')
                     .eq('id', orderId)
                     .single();
 
                 if (!checkErr && currentOrder && currentOrder.payment_status === 'pending') {
-                    let template = currentOrder?.templates;
-                    if (Array.isArray(template)) template = template[0];
-                    if ((!template || !template.ai_model) && currentOrder?.template_id) {
+                    let template = null;
+                    if (currentOrder?.template_id) {
                         const { data: t } = await client.database.from('templates').select('*').eq('id', currentOrder.template_id).single();
                         if (t) template = t;
                     }
-                    const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+
+                    let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                    if (!aiModel) {
+                        if (currentOrder?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
+                        else if (currentOrder?.form_values?.kling_video_url) aiModel = 'kling_3_0_v2';
+                    }
                     const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
                     const hasRefImage = !!currentOrder?.reference_image_url;
