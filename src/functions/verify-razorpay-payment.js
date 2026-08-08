@@ -44,7 +44,7 @@ export default async function (req) {
         // Confirm Payment Logic directly instead of calling process-order to avoid nested invocations
         const { data: order, error: fetchErr } = await client.database
             .from('orders')
-            .select('*, templates(*)')
+            .select('*')
             .eq('id', orderId)
             .single();
 
@@ -60,19 +60,21 @@ export default async function (req) {
             });
         }
 
-        let template = order?.templates;
-        if (Array.isArray(template)) template = template[0];
-        
-        if ((!template || !template.ai_model) && order?.template_id) {
+        let template = null;
+        if (order?.template_id) {
            const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
            if (t) template = t;
         }
 
-        const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+        let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+        if (!aiModel) {
+            if (order?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
+            else if (order?.form_values?.kling_video_url) aiModel = 'kling_3_0_v2';
+        }
         const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
         const hasRefImage = !!order?.reference_image_url;
-        const isImageOnly = order?.template_type === 'image';
+        const isImageOnly = (template?.template_type === 'image' || order?.template_type === 'image') && !isDirectVideoModel;
         
         // For Seedance and Kling, the uploaded images/videos are used directly for generation.
         // We do NOT want to pass them through Nano Banana first.

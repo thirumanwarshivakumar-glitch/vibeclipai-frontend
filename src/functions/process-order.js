@@ -147,40 +147,47 @@ export default async function (req) {
             if (action === 'confirm-payment') {
                 const { data: order } = await client.database
                     .from('orders')
-                    .select('*, templates(*)')
+                    .select('*')
                     .eq('id', orderId)
                     .single();
 
-                let template = order?.templates;
-                if (Array.isArray(template)) template = template[0];
-                
-                if ((!template || !template.ai_model) && order?.template_id) {
+                let template = null;
+                if (order?.template_id) {
                    const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
                    if (t) template = t;
                 }
-
-                const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                
+                let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                if (!aiModel) {
+                    if (order?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
+                    else if (order?.form_values?.kling_video_url) aiModel = 'kling_3_0_v2';
+                }
                 const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
                 const hasRefImage = !!order?.reference_image_url;
-                const isImageOnly = order?.template_type === 'image';
+                const isImageOnly = (template?.template_type === 'image' || order?.template_type === 'image') && !isDirectVideoModel;
                 
                 // For Seedance and Kling, the uploaded images/videos are used directly for generation.
                 // We do NOT want to pass them through Nano Banana first.
                 const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
                 // ⚡ ATOMIC CONCURRENCY LOCK: Update ONLY if payment_status is still 'pending'
-                const { data: updatedOrders, error: updateErr } = await client.database
-                    .from('orders')
-                    .update({ payment_status: 'paid', generation_status: startStatus, updated_at: new Date().toISOString() })
-                    .eq('id', orderId)
-                    .eq('payment_status', 'pending')
-                    .select();
+                let didClaim = false;
+                if (order?.payment_status === 'pending') {
+                    const { data: updatedOrders, error: updateErr } = await client.database
+                        .from('orders')
+                        .update({ payment_status: 'paid', generation_status: startStatus, updated_at: new Date().toISOString() })
+                        .eq('id', orderId)
+                        .eq('payment_status', 'pending')
+                        .select();
 
-                if (updateErr) console.error('Update payment error:', updateErr);
+                    if (updateErr) console.error('Update payment error:', updateErr);
+                    if (updatedOrders && updatedOrders.length > 0) didClaim = true;
+                } else if (order?.payment_status === 'paid') {
+                    didClaim = true;
+                }
 
-                // If no rows updated, another concurrent thread (Webhook/AJAX) already claimed the lock!
-                if (!updatedOrders || updatedOrders.length === 0) {
+                if (!didClaim) {
                     console.log(`[LOCK] Order ${orderId} already claimed by concurrent thread in process-order. Skipping duplicate execution.`);
                     return new Response(JSON.stringify({ success: true, message: 'Already claimed by concurrent thread' }), {
                         status: 200,
@@ -228,13 +235,17 @@ export default async function (req) {
             if (action === 'poll') {
                 const { data: order } = await client.database
                     .from('orders')
-                    .select('*, templates(*)')
+                    .select('*')
                     .eq('id', orderId)
                     .single();
 
-                let template = order?.templates;
-                if (Array.isArray(template)) template = template[0];
-                const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                let template = null;
+                if (order?.template_id) {
+                    const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
+                    if (t) template = t;
+                }
+                let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+                if (!aiModel && order?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
 
                 const getTargetFunction = (type, currentModel) => {
                     if (type === 'image') {
@@ -261,7 +272,8 @@ export default async function (req) {
                     });
                 } catch (e) {
                     console.error('Failed to poll generation:', e);
-                    return new Response(JSON.stringify({ error: 'Failed to route poll request', details: (e as Error).message }), {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    return new Response(JSON.stringify({ error: 'Failed to route poll request', details: msg }), {
                         status: 500,
                         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                     });

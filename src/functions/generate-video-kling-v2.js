@@ -23,14 +23,17 @@ export default async function (req) {
 
         const { data: order, error: fetchErr } = await client.database
             .from('orders')
-            .select('*, templates(*)')
+            .select('*')
             .eq('id', orderId)
             .single();
 
-        if (fetchErr || !order) return new Response(JSON.stringify({ error: 'Order not found' }), { status: 404, headers: corsHeaders });
+        if (fetchErr || !order) {
+            console.error('[GEN-KLING-V2] Order fetch error:', fetchErr);
+            return new Response(JSON.stringify({ error: 'Order not found', details: fetchErr }), { status: 404, headers: corsHeaders });
+        }
 
-        let template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
-        if ((!template || !template.ai_model) && order.template_id) {
+        let template = null;
+        if (order.template_id) {
             const { data: t } = await client.database
                 .from('templates')
                 .select('*')
@@ -39,14 +42,14 @@ export default async function (req) {
             if (t) template = t;
         }
 
-        const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
+        const KIE_API_KEY = Deno.env.get('KIE_API_KEY') || '06cfa869354f6e2b85b8d5bbf140ca93';
         if (!KIE_API_KEY) {
             return new Response(JSON.stringify({ error: 'KIE_API_KEY not configured' }), { status: 500, headers: corsHeaders });
         }
         const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
-        // Submit
-        if (action === 'submit') {
+        // Submit (or Auto-Trigger if polling while video_task_id is null)
+        if (action === 'submit' || (action === 'poll' && !order.video_task_id)) {
             // ⚡ ATOMIC DB LOCK: Claim lock ONLY IF video_task_id is currently NULL
             const { data: lockResult } = await client.database
                 .from('orders')
@@ -107,7 +110,8 @@ export default async function (req) {
                 }
             } catch (submitErr) {
                 console.error('[GEN-KLING-V2] Fetch Error during submit:', submitErr);
-                return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: (submitErr as Error).message }), { status: 500, headers: corsHeaders });
+                const msg = submitErr instanceof Error ? submitErr.message : String(submitErr);
+                return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: msg }), { status: 500, headers: corsHeaders });
             }
         }
 

@@ -17,18 +17,23 @@ export default async function (req) {
         if (!orderId) return new Response(JSON.stringify({ error: 'Missing orderId' }), { status: 400, headers: corsHeaders });
 
         const client = createClient({
-            baseUrl: Deno.env.get('INSFORGE_BASE_URL'),
-            anonKey: Deno.env.get('ANON_KEY'),
+            baseUrl: Deno.env.get('INSFORGE_BASE_URL') || Deno.env.get('INSFORGE_INTERNAL_URL') || 'https://4w8g54a3.ap-southeast.insforge.app',
+            anonKey: Deno.env.get('ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTE5NzF9.ljwpcHftNUka7V5rYEOjmdEw9p2bUzIDRrPORQm56Os',
         });
 
         const { data: order, error: fetchErr } = await client.database
             .from('orders')
-            .select('*, templates(*)')
+            .select('*')
             .eq('id', orderId)
             .single();
 
-        let template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
-        if ((!template || !template.ai_model) && order.template_id) {
+        if (fetchErr || !order) {
+            console.error('[GEN-SEEDANCE-V2] Order fetch error:', fetchErr);
+            return new Response(JSON.stringify({ error: 'Order not found', details: fetchErr }), { status: 404, headers: corsHeaders });
+        }
+
+        let template = null;
+        if (order.template_id) {
             const { data: t } = await client.database
                 .from('templates')
                 .select('*')
@@ -37,14 +42,14 @@ export default async function (req) {
             if (t) template = t;
         }
 
-        const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
+        const KIE_API_KEY = Deno.env.get('KIE_API_KEY') || '06cfa869354f6e2b85b8d5bbf140ca93';
         if (!KIE_API_KEY) {
             return new Response(JSON.stringify({ error: 'KIE_API_KEY not configured' }), { status: 500, headers: corsHeaders });
         }
         const KIE_BASE_URL = 'https://api.kie.ai/api/v1';
 
-        // Submit
-        if (action === 'submit') {
+        // Submit (or Auto-Trigger if polling while video_task_id is null)
+        if (action === 'submit' || (action === 'poll' && !order.video_task_id)) {
             // ⚡ ATOMIC DB LOCK: Claim lock ONLY IF video_task_id is currently NULL
             const { data: lockResult } = await client.database
                 .from('orders')
@@ -63,8 +68,9 @@ export default async function (req) {
 
             console.log(`[GEN-SEEDANCE-V2] [LOCK ACQUIRED] Submitting Seedance request...`);
             
-            const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
-            const isSeedance25 = aiModel === 'seedance_2_5_v2' || aiModel.includes('2.5') || aiModel.includes('2_5');
+            let aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+            if (!aiModel && order?.form_values?.seedance_user_images) aiModel = 'seedance_2_5_v2';
+            const isSeedance25 = aiModel === 'seedance_2_5_v2' || aiModel.includes('2.5') || aiModel.includes('2_5') || (!aiModel.includes('fast'));
             const modelEndpoint = isSeedance25 ? 'bytedance/seedance-2-5' : 'bytedance/seedance-2-fast';
 
             console.log(`[GEN-SEEDANCE-V2] Model: ${modelEndpoint} | isSeedance25: ${isSeedance25}`);
@@ -161,7 +167,8 @@ export default async function (req) {
                 }
             } catch (submitErr) {
                 console.error('[GEN-SEEDANCE-V2] Fetch Error during submit:', submitErr);
-                return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: (submitErr as Error).message }), { status: 500, headers: corsHeaders });
+                const msg = submitErr instanceof Error ? submitErr.message : String(submitErr);
+                return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: msg }), { status: 500, headers: corsHeaders });
             }
         }
 

@@ -89,11 +89,14 @@ export default async function (req) {
                         const { data: t } = await client.database.from('templates').select('*').eq('id', currentOrder.template_id).single();
                         if (t) template = t;
                     }
-                    const aiModel = (template?.ai_model || '').toLowerCase();
+                    const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
                     const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
                     const hasRefImage = !!currentOrder?.reference_image_url;
-                    const isImageOnly = currentOrder?.template_type === 'image';
+                    const isImageOnly = (template?.template_type === 'image' || currentOrder?.template_type === 'image') && !isDirectVideoModel;
+                    
+                    // For Seedance and Kling, the uploaded images/videos are used directly for generation.
+                    // We do NOT want to pass them through Nano Banana first.
                     const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
                     // ⚡ ATOMIC CONCURRENCY LOCK: Update ONLY if payment_status is still 'pending'
