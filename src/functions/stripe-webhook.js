@@ -77,7 +77,7 @@ export default async function (req: Request): Promise<Response> {
                 }
                 if (type === 'video') {
                     if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
-                    if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                    if (currentModel.includes('kling')) return 'generate-video-kling-v2';
                     if (currentModel.includes('seedance')) return 'generate-video-seedance-v2';
                     return 'generate-video';
                 }

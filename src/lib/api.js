@@ -508,7 +508,7 @@ export async function pollGenerationStatus(orderId, type) {
         else targetFunc = 'generate-image';
     } else {
         if (aiModel === 'veo_3_1_v2') targetFunc = 'generate-video-veo-v2';
-        else if (aiModel === 'kling_3_0_v2') targetFunc = 'generate-video-kling-v2';
+        else if (aiModel.includes('kling')) targetFunc = 'generate-video-kling-v2';
         else if (aiModel.includes('seedance')) targetFunc = 'generate-video-seedance-v2';
     }
     

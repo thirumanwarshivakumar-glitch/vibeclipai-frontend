@@ -113,7 +113,7 @@ export default async function (req) {
             }
             if (type === 'video') {
                 if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
-                if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
+                if (currentModel.includes('kling')) return 'generate-video-kling-v2';
                 if (currentModel.includes('seedance')) return 'generate-video-seedance-v2';
                 return 'generate-video';
             }
@@ -122,7 +122,7 @@ export default async function (req) {
 
         // Trigger the asynchronous generation natively
         try {
-            console.log(`[VERIFY-PAY] Order ${orderId} marked paid. startStatus: ${startStatus}. isKling: ${isKling}`);
+            console.log(`[VERIFY-PAY] Order ${orderId} marked paid. startStatus: ${startStatus}. aiModel: ${aiModel}`);
             
             const invokeBody = { orderId, action: 'submit' };
             console.log(`[VERIFY-PAY] Invoking generation with body:`, JSON.stringify(invokeBody));
