@@ -115,26 +115,33 @@ export default function SuccessPage() {
         ''
     ).trim().toLowerCase();
     
-    // Check if it's a Kling template
-    const isKling = (stateTemplate?.ai_model || orderData?.ai_model || stateTemplate?.name || orderData?.template_id || '').toLowerCase().includes('kling');
+    // Check if it's a direct video model (Seedance or Kling)
+    const aiModelName = (
+        stateTemplate?.ai_model || 
+        orderData?.ai_model || 
+        orderData?.templates?.ai_model || 
+        stateTemplate?.name || 
+        orderData?.template_name || 
+        ''
+    ).toLowerCase();
+
+    const isDirectVideoModel = aiModelName.includes('seedance') || aiModelName.includes('kling');
 
     // Safety check: some parts of the app might use tags to identify it as an image
-    const hasImageTag = stateTemplate?.tags?.some(t => t.toLowerCase().includes('image')) || 
-                        orderData?.template_id === 'some-known-image-template-id'; // Fallback if needed
+    const hasImageTag = stateTemplate?.tags?.some(t => String(t).toLowerCase().includes('image'));
 
     const isImageOnlyTemplate = rawType === 'image' || rawType === 'photo' || hasImageTag;
     
-    // hasRefImage is for video templates that have a reference photo
-    // IMPORTANT: Kling Motion Control ALWAYS behaves like a reference photo template (even if we skip review)
-    const hasRefImage = !!(orderData?.reference_image_url || stateTemplate?.reference_image_url || orderData?.user_image_url || isKling);
+    // hasTwoStepReview is ONLY for Veo two-step templates that explicitly use Nano Banana image preview
+    const hasTwoStepReview = !isDirectVideoModel && !isImageOnlyTemplate && !!(orderData?.reference_image_url || stateTemplate?.reference_image_url || orderData?.user_image_url);
     
     // If it's an image template, always use imageOnlySteps.
-    // If it's a video template with a ref image (or Kling), use imageSteps (includes review).
-    // Otherwise use defaultSteps.
-    const activeSteps = isImageOnlyTemplate ? imageOnlySteps : (hasRefImage ? imageSteps : defaultSteps);
+    // If it's a Veo two-step video template, use imageSteps.
+    // For direct video models (Seedance 2.5, Seedance 2.0 Fast, Kling) and standard video templates, use defaultSteps.
+    const activeSteps = isImageOnlyTemplate ? imageOnlySteps : (hasTwoStepReview ? imageSteps : defaultSteps);
 
     // Use a memoized map to avoid effect restarts
-    const activeStatusMap = isImageOnlyTemplate ? statusToStepImageOnly : (hasRefImage ? statusToStepImage : statusToStepDefault);
+    const activeStatusMap = isImageOnlyTemplate ? statusToStepImageOnly : (hasTwoStepReview ? statusToStepImage : statusToStepDefault);
 
     useEffect(() => {
         if (!orderId) {
@@ -308,9 +315,8 @@ export default function SuccessPage() {
                     </p>
                 )}
 
-                {/* Image Confirmation Step (Only show if NOT purely an image template, or if we want review) */}
-                {/* Note: Based on user request, image-only templates should NOT show this review step */}
-                {isAwaitingImage && orderData?.generated_image_url && !isImageOnlyTemplate && (
+                {/* Image Confirmation Step (Only show for Veo two-step templates that explicitly request review) */}
+                {isAwaitingImage && orderData?.generated_image_url && hasTwoStepReview && (
                     <div className="image-confirmation-card animate-fade-in-up" style={{ marginBottom: 32, padding: '24px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', animationDelay: '0.4s' }}>
                         <h3 style={{ marginBottom: 16, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Review Generated Image</h3>
                         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16 }}>

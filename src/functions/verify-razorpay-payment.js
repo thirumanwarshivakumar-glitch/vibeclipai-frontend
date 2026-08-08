@@ -63,21 +63,19 @@ export default async function (req) {
         let template = order?.templates;
         if (Array.isArray(template)) template = template[0];
         
-        if (!template && order?.template_id) {
+        if ((!template || !template.ai_model) && order?.template_id) {
            const { data: t } = await client.database.from('templates').select('*').eq('id', order.template_id).single();
-           template = t;
+           if (t) template = t;
         }
 
         const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
-        const isKling = aiModel.includes('kling');
+        const isDirectVideoModel = aiModel.includes('seedance') || aiModel.includes('kling');
 
         const hasRefImage = !!order?.reference_image_url;
         const isImageOnly = order?.template_type === 'image';
         
-        // For Seedance and Kling V2, the uploaded images/videos are used directly for generation.
+        // For Seedance and Kling, the uploaded images/videos are used directly for generation.
         // We do NOT want to pass them through Nano Banana first.
-        const isDirectVideoModel = aiModel === 'seedance_2_5_v2' || aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
-
         const startStatus = (isImageOnly || (hasRefImage && !isDirectVideoModel)) ? 'generating_image' : 'generating';
 
         // ⚡ ATOMIC CONCURRENCY LOCK: Update ONLY if payment_status is still 'pending'
@@ -114,7 +112,7 @@ export default async function (req) {
             if (type === 'video') {
                 if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
                 if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                if (currentModel.includes('seedance')) return 'generate-video-seedance-v2';
                 return 'generate-video';
             }
             return 'generate-video';

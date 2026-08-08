@@ -501,6 +501,10 @@ export async function pollGenerationStatus(orderId, type) {
     
     let template = order?.templates;
     if (Array.isArray(template)) template = template[0];
+    if ((!template || !template.ai_model) && order?.template_id) {
+        const { data: t } = await insforge.database.from('templates').select('*').eq('id', order.template_id).single();
+        if (t) template = t;
+    }
     const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
     
     let targetFunc = 'generate-video';
@@ -510,7 +514,7 @@ export async function pollGenerationStatus(orderId, type) {
     } else {
         if (aiModel === 'veo_3_1_v2') targetFunc = 'generate-video-veo-v2';
         else if (aiModel === 'kling_3_0_v2') targetFunc = 'generate-video-kling-v2';
-        else if (aiModel === 'seedance_2_fast_v2' || aiModel === 'seedance_2_5_v2') targetFunc = 'generate-video-seedance-v2';
+        else if (aiModel.includes('seedance')) targetFunc = 'generate-video-seedance-v2';
     }
     
     console.log(`[API] Routing poll to ${targetFunc}...`);
