@@ -315,8 +315,8 @@ export default async function (req) {
                             const getTargetFunction = (currentModel) => {
                                 if (!currentModel || currentModel === 'veo_3_1' || currentModel === 'nano_banana_pro' || currentModel === 'kling_3_0') return 'generate-video';
                                 if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
-                                if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                                if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                                if (currentModel.includes('kling')) return 'generate-video-kling-v2';
+                                if (currentModel.includes('seedance')) return 'generate-video-seedance-v2';
                                 return 'generate-video';
                             };
                             const targetFunc = getTargetFunction(aiModel);
