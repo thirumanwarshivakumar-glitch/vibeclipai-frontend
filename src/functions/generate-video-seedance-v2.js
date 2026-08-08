@@ -27,9 +27,16 @@ export default async function (req) {
             .eq('id', orderId)
             .single();
 
-        if (fetchErr || !order) return new Response(JSON.stringify({ error: 'Order not found' }), { status: 404, headers: corsHeaders });
+        let template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
+        if ((!template || !template.ai_model) && order.template_id) {
+            const { data: t } = await client.database
+                .from('templates')
+                .select('*')
+                .eq('id', order.template_id)
+                .single();
+            if (t) template = t;
+        }
 
-        const template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
         const KIE_API_KEY = Deno.env.get('KIE_API_KEY');
         if (!KIE_API_KEY) {
             return new Response(JSON.stringify({ error: 'KIE_API_KEY not configured' }), { status: 500, headers: corsHeaders });
