@@ -43,7 +43,7 @@ export default async function (req: Request): Promise<Response> {
             let template = order?.templates;
             if (Array.isArray(template)) template = template[0];
             const aiModel = (template?.ai_model || '').toLowerCase();
-            const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+            const isDirectVideoModel = aiModel === 'seedance_2_5_v2' || aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
 
             const hasRefImage = !!order?.reference_image_url;
             const isImageOnly = order?.template_type === 'image';
@@ -67,7 +67,7 @@ export default async function (req: Request): Promise<Response> {
                 if (type === 'video') {
                     if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
                     if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                    if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                    if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
                     return 'generate-video';
                 }
                 return 'generate-video';

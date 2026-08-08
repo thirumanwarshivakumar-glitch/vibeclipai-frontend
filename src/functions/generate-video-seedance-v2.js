@@ -56,32 +56,78 @@ export default async function (req) {
 
             console.log(`[GEN-SEEDANCE-V2] [LOCK ACQUIRED] Submitting Seedance request...`);
             
-            const motionVideoUrl = order.user_video_url || template?.reference_video_url;
-            const referenceImageUrl = order.reference_image_url || order.generated_image_url || template?.reference_image_url;
-            const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
+            const aiModel = (template?.ai_model || template?.aiModel || '').toLowerCase();
+            const isSeedance25 = aiModel === 'seedance_2_5_v2' || aiModel.includes('2.5') || aiModel.includes('2_5');
+            const modelEndpoint = isSeedance25 ? 'bytedance/seedance-2-5' : 'bytedance/seedance-2-fast';
 
+            console.log(`[GEN-SEEDANCE-V2] Model: ${modelEndpoint} | isSeedance25: ${isSeedance25}`);
+
+            const motionVideoUrl = order.user_video_url || template?.reference_video_url;
+            const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
             const aspectR = template?.default_aspect_ratio || "16:9";
             
-            // Seedance API duration cap is 15s per generation request
-            const rawDuration = parseInt(template?.video_duration) || 8; 
-            const duration = rawDuration > 15 ? 15 : (rawDuration <= 4 ? 4 : rawDuration);
+            // Seedance 2.5 supports up to 30s; 2.0 Fast supports up to 15s
+            const rawDuration = parseInt(template?.video_duration) || 10;
+            const maxAllowed = isSeedance25 ? 30 : 15;
+            const duration = Math.min(maxAllowed, Math.max(3, rawDuration));
 
-            const refImageUrls = referenceImageUrl ? referenceImageUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
+            // Assemble Image Slots for Seedance 2.5
+            let refImageUrls = [];
+            let defaultAudioUrl = '';
+            let syncAudio = true;
+
+            if (isSeedance25) {
+                const refData = template?.reference_images || template?.seedance_slots;
+                const slots = Array.isArray(refData) ? refData : (refData?.slots || []);
+                const audioConfig = !Array.isArray(refData) && refData?.audio ? refData.audio : {};
+
+                defaultAudioUrl = audioConfig.reference_audio_url || template?.reference_audio_url || '';
+                syncAudio = audioConfig.generate_audio ?? (template?.generate_audio !== false);
+
+                const userUploadedSlots = order.form_values?.seedance_user_images || {};
+
+                if (Array.isArray(slots) && slots.length > 0) {
+                    slots.forEach((s) => {
+                        if (s && s.enabled) {
+                            if (s.source === 'user') {
+                                const userUrl = userUploadedSlots[s.slot] || userUploadedSlots[String(s.slot)];
+                                if (userUrl) refImageUrls.push(userUrl);
+                            } else if (s.source === 'admin' && s.url) {
+                                refImageUrls.push(s.url);
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Fallback to reference_image_url if slots were not used or empty
+            if (refImageUrls.length === 0) {
+                const referenceImageUrl = order.reference_image_url || order.generated_image_url || template?.reference_image_url;
+                refImageUrls = referenceImageUrl ? referenceImageUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
+            }
+
+            // Audio references
+            const audioUrl = order.form_values?.user_audio_url || order.reference_audio_url || defaultAudioUrl;
+            const refAudioUrls = audioUrl ? [audioUrl] : [];
 
             const kieBody = {
-                model: 'bytedance/seedance-2-fast',
+                model: modelEndpoint,
                 input: {
                     prompt: fullPrompt,
                     reference_image_urls: refImageUrls,
                     reference_video_urls: motionVideoUrl ? [motionVideoUrl] : [],
-                    generate_audio: true, // Requested native audio support
-                    resolution: "480p", // Requested 480P explicitly
+                    reference_audio_urls: refAudioUrls,
+                    generate_audio: syncAudio,
+                    resolution: "480p", // 480P fixed
                     aspect_ratio: aspectR,
                     duration: duration,
+                    output_format: "mp4",
                     web_search: false,
                     nsfw_checker: true
                 }
             };
+
+            console.log(`[GEN-SEEDANCE-V2] Payload:`, JSON.stringify(kieBody, null, 2));
 
             try {
                 const response = await fetch(`${KIE_BASE_URL}/jobs/createTask`, {

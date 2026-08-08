@@ -19,6 +19,14 @@ export default function TemplateDetailPage() {
     const [imageUploadError, setImageUploadError] = useState('');
     const userImageRef = useRef(null);
 
+    // Seedance 2.5 Multi-Slot & Audio state
+    const [slotFiles, setSlotFiles] = useState({});
+    const [slotPreviews, setSlotPreviews] = useState({});
+    const [userAudioFile, setUserAudioFile] = useState(null);
+    const [userAudioPreview, setUserAudioPreview] = useState('');
+    const [audioError, setAudioError] = useState('');
+    const userAudioRef = useRef(null);
+
     const [userVideoFile, setUserVideoFile] = useState(null);
     const [userVideoPreview, setUserVideoPreview] = useState('');
     const [videoUploadError, setVideoUploadError] = useState('');
@@ -68,13 +76,37 @@ export default function TemplateDetailPage() {
         template?.name?.toLowerCase().includes('kling') ||
         template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa';
 
+    const isSeedance25 = 
+        template?.ai_model?.toLowerCase().includes('seedance_2_5') || 
+        template?.aiModel?.toLowerCase().includes('seedance_2_5') ||
+        Array.isArray(template?.seedance_slots) ||
+        Array.isArray(template?.reference_images) ||
+        (template?.reference_images && typeof template.reference_images === 'object' && template.reference_images.slots);
+
+    const refImagesData = template?.reference_images || template?.seedance_slots;
+    const seedanceSlots = Array.isArray(refImagesData) 
+        ? refImagesData 
+        : (refImagesData?.slots || []);
+    const seedanceAudio = !Array.isArray(refImagesData) && refImagesData?.audio 
+        ? refImagesData.audio 
+        : {};
+
+    const userSeedanceSlots = isSeedance25 && Array.isArray(seedanceSlots)
+        ? seedanceSlots.filter(s => s && s.enabled && s.source === 'user')
+        : [];
+    const adminSeedanceSlots = isSeedance25 && Array.isArray(seedanceSlots)
+        ? seedanceSlots.filter(s => s && s.enabled && s.source === 'admin')
+        : [];
+
+    const allowsUserAudio = isSeedance25 && (!!seedanceAudio.allow_user_audio_upload || !!template?.allow_user_audio_upload);
+
     const tags = template.tags || [];
     const rawRatio = (template.default_aspect_ratio || template.aspect_ratio || template.aspectRatio || '').toLowerCase();
     const isVertical916 = rawRatio.includes('9:16') || rawRatio.includes('9/16') || tags.some(t => String(t).includes('9:16') || String(t).includes('9/16')) || isKlingMotionControl;
     const isSquare11 = rawRatio.includes('1:1') || rawRatio.includes('1/1') || tags.some(t => String(t).includes('1:1') || String(t).includes('1/1'));
     const mediaAspectRatio = isImage ? '4/5' : (isVertical916 ? '9/16' : (isSquare11 ? '1/1' : '16/9'));
 
-    const requiresUserImage = !!(template?.allow_user_image_upload) || isKlingMotionControl;
+    const requiresUserImage = !isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl);
     const requiresUserVideo = !!(template?.allow_user_video_upload);
     const inputSchema = (template.input_schema || []).filter(f => f && f.key && String(f.key).trim() !== '');
     const maxUploads = template?.max_user_uploads || template?.maxUserUploads || 1;
@@ -164,6 +196,53 @@ export default function TemplateDetailPage() {
         if (userVideoRef.current) userVideoRef.current.value = '';
     };
 
+    const handleSlotSelect = async (e, slotIdx) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const processed = await compressImage(file);
+            setSlotFiles(prev => ({ ...prev, [slotIdx]: processed }));
+            setSlotPreviews(prev => ({ ...prev, [slotIdx]: URL.createObjectURL(processed) }));
+        } catch (err) {
+            setSlotFiles(prev => ({ ...prev, [slotIdx]: file }));
+            setSlotPreviews(prev => ({ ...prev, [slotIdx]: URL.createObjectURL(file) }));
+        }
+    };
+
+    const removeSlotSelect = (slotIdx) => {
+        setSlotFiles(prev => {
+            const copy = { ...prev };
+            delete copy[slotIdx];
+            return copy;
+        });
+        setSlotPreviews(prev => {
+            const copy = { ...prev };
+            delete copy[slotIdx];
+            return copy;
+        });
+    };
+
+    const handleAudioSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('audio/')) {
+            setAudioError('Please select a valid audio file (MP3, WAV, AAC).');
+            return;
+        }
+        if (file.size > 30 * 1024 * 1024) {
+            setAudioError('Audio file must be under 30MB.');
+            return;
+        }
+        setAudioError('');
+        setUserAudioFile(file);
+        setUserAudioPreview(URL.createObjectURL(file));
+    };
+
+    const removeAudioSelect = () => {
+        setUserAudioFile(null);
+        setUserAudioPreview('');
+    };
+
     const handleContinue = () => {
         const missingRequired = inputSchema
             .filter((f) => f.required && !formValues[f.key])
@@ -174,17 +253,37 @@ export default function TemplateDetailPage() {
             return;
         }
 
-        if (requiresUserImage && userImageFiles.length === 0) {
-            alert('Please upload your reference photo to proceed.');
-            return;
+        if (isSeedance25 && userSeedanceSlots.length > 0) {
+            const missingSlots = userSeedanceSlots.filter(s => !slotFiles[s.slot]);
+            if (missingSlots.length > 0) {
+                alert(`Please upload photo for: ${missingSlots.map(s => s.label || `Image ${s.slot}`).join(', ')}`);
+                return;
+            }
+        } else {
+            if (requiresUserImage && userImageFiles.length === 0) {
+                alert('Please upload your reference photo to proceed.');
+                return;
+            }
         }
+
         if (requiresUserVideo && !userVideoFile) {
             alert('Please upload your motion video to proceed.');
             return;
         }
 
         navigate('/checkout', {
-            state: { template, formValues, userImageFiles, userImagePreviews, userVideoFile, userVideoPreview },
+            state: {
+                template,
+                formValues,
+                userImageFiles,
+                userImagePreviews,
+                userVideoFile,
+                userVideoPreview,
+                seedanceSlotFiles: slotFiles,
+                seedanceSlotPreviews: slotPreviews,
+                userAudioFile,
+                userAudioPreview
+            },
         });
     };
 
@@ -330,7 +429,116 @@ export default function TemplateDetailPage() {
                                 </div>
 
                                 <div className="space-y-8">
-                                    {/* Image Upload */}
+                                    {/* Seedance 2.5 Multi-Slot Image Uploads */}
+                                    {isSeedance25 && userSeedanceSlots.length > 0 && (
+                                        <div className="space-y-6">
+                                            {userSeedanceSlots.map((slot, idx) => (
+                                                <div key={slot.slot || idx} className="space-y-2">
+                                                    <label className="flex items-center gap-3 text-sm font-semibold mb-2">
+                                                        <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] flex items-center justify-center text-xs">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <span>{slot.label || `Photo ${slot.slot}`}</span>
+                                                        <span className="text-[#EC4899]">*</span>
+                                                    </label>
+                                                    
+                                                    <div className="ml-9">
+                                                        {slotPreviews[slot.slot] ? (
+                                                            <div className="relative w-28 h-28 group">
+                                                                <img
+                                                                    src={slotPreviews[slot.slot]}
+                                                                    alt={slot.label || `Slot ${slot.slot}`}
+                                                                    className="w-full h-full object-cover rounded-xl border-2 border-[#7C3AED]"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeSlotSelect(slot.slot)}
+                                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <label className="border-2 border-dashed border-white/20 hover:border-[#7C3AED]/50 rounded-xl p-5 text-center cursor-pointer transition-colors bg-white/5 block">
+                                                                <Upload className="w-6 h-6 mx-auto mb-1 text-zinc-400" />
+                                                                <p className="text-sm font-semibold">Upload {slot.label || `Photo ${slot.slot}`}</p>
+                                                                <p className="text-xs text-zinc-500 mt-0.5">JPG, PNG, WebP (Max 10MB)</p>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/jpeg,image/png,image/webp"
+                                                                    className="hidden"
+                                                                    onChange={(e) => handleSlotSelect(e, slot.slot)}
+                                                                />
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Seedance 2.5 Admin Pre-set Assets Preview */}
+                                    {isSeedance25 && adminSeedanceSlots.length > 0 && (
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs">
+                                            <div className="font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                                                <span>🎨 Included Template Assets (Admin Pre-set)</span>
+                                            </div>
+                                            <div className="flex gap-3 flex-wrap">
+                                                {adminSeedanceSlots.map((slot, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 bg-black/30 p-2 rounded-lg border border-white/10">
+                                                        {slot.url && <img src={slot.url} alt={slot.label} className="w-8 h-8 rounded object-cover" />}
+                                                        <span className="text-zinc-300">{slot.label || `Asset ${slot.slot}`}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Seedance 2.5 User Audio Upload */}
+                                    {isSeedance25 && allowsUserAudio && (
+                                        <div>
+                                            <label className="flex items-center gap-3 text-sm font-semibold mb-2">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#EC4899] flex items-center justify-center text-xs">
+                                                    🎵
+                                                </div>
+                                                Custom Background Music (Optional)
+                                            </label>
+                                            <p className="text-xs text-zinc-400 mb-4 ml-9">
+                                                Upload your favorite soundtrack or wedding song (MP3, WAV).
+                                            </p>
+
+                                            <div className="ml-9">
+                                                {userAudioPreview ? (
+                                                    <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/10">
+                                                        <audio src={userAudioPreview} controls className="h-8 max-w-[220px]" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={removeAudioSelect}
+                                                            className="text-red-400 hover:text-red-300 text-xs font-semibold"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <label className="border-2 border-dashed border-white/20 hover:border-[#7C3AED]/50 rounded-xl p-5 text-center cursor-pointer transition-colors bg-white/5 block">
+                                                        <Upload className="w-6 h-6 mx-auto mb-1 text-zinc-400" />
+                                                        <p className="text-sm font-semibold">Upload MP3 / Audio Track</p>
+                                                        <p className="text-xs text-zinc-500 mt-0.5">MP3, WAV, AAC (Max 30MB)</p>
+                                                        <input
+                                                            ref={userAudioRef}
+                                                            type="file"
+                                                            accept="audio/mpeg,audio/wav,audio/aac,audio/ogg"
+                                                            className="hidden"
+                                                            onChange={handleAudioSelect}
+                                                        />
+                                                    </label>
+                                                )}
+                                                {audioError && <p className="text-xs text-red-400 mt-2">{audioError}</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Standard Image Upload for Veo and Legacy Models */}
                                     {requiresUserImage && (
                                         <div>
                                             <label className="flex items-center gap-3 text-sm font-semibold mb-2">

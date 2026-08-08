@@ -18,7 +18,11 @@ export default function CheckoutPage() {
         userImageFile: passedImageFile, 
         userImagePreview: passedImagePreview,
         userVideoFile: passedVideoFile,
-        userVideoPreview: passedVideoPreview
+        userVideoPreview: passedVideoPreview,
+        seedanceSlotFiles: passedSeedanceSlotFiles = {},
+        seedanceSlotPreviews: passedSeedanceSlotPreviews = {},
+        userAudioFile: passedAudioFile = null,
+        userAudioPreview: passedAudioPreview = ''
     } = location.state || {};
     
     const [paymentMethod, setPaymentMethod] = useState('razorpay');
@@ -41,13 +45,19 @@ export default function CheckoutPage() {
     const [videoUploadError, setVideoUploadError] = useState('');
     const userVideoRef = useRef(null);
 
+    const isSeedance25 = 
+        template?.ai_model?.toLowerCase().includes('seedance_2_5') || 
+        template?.aiModel?.toLowerCase().includes('seedance_2_5') ||
+        Array.isArray(template?.seedance_slots) ||
+        Array.isArray(template?.reference_images);
+
     const isKlingMotionControl = 
         template?.ai_model?.toLowerCase().includes('kling') || 
         template?.aiModel?.toLowerCase().includes('kling') ||
         template?.name?.toLowerCase().includes('kling') ||
         template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa'; 
         
-    const requiresUserImage = !!(template?.allow_user_image_upload) || isKlingMotionControl;
+    const requiresUserImage = !isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl);
     const requiresUserVideo = !!(template?.allow_user_video_upload);
 
     useEffect(() => {
@@ -178,19 +188,38 @@ export default function CheckoutPage() {
         try {
             let userImageUrl = null;
             let userVideoUrl = null;
+            let userAudioUrl = null;
             let userImageBase64 = null;
+            const seedanceUploadedSlotUrls = {};
             const tempId = `temp-${Date.now()}`;
 
-            if (requiresUserImage && userImageFiles.length > 0) {
+            // Handle Seedance 2.5 Multi-Slot Image Uploads
+            if (isSeedance25 && Object.keys(passedSeedanceSlotFiles).length > 0) {
+                setStatusText('Processing your reference photos...');
+                for (const [slotKey, file] of Object.entries(passedSeedanceSlotFiles)) {
+                    if (file) {
+                        try {
+                            const url = await uploadUserImage(file, `${tempId}-seedance-slot-${slotKey}`);
+                            seedanceUploadedSlotUrls[slotKey] = url;
+                        } catch (err) {
+                            console.warn(`Upload error for slot ${slotKey}:`, err);
+                            // Fallback to base64 if storage direct upload failed
+                            try {
+                                const b64 = await fileToBase64(file);
+                                seedanceUploadedSlotUrls[slotKey] = b64;
+                            } catch (e) {}
+                        }
+                    }
+                }
+                userImageUrl = Object.values(seedanceUploadedSlotUrls).filter(Boolean).join(',');
+            } else if (requiresUserImage && userImageFiles.length > 0) {
                 setStatusText('Processing your reference image...');
-                // Convert reference photo to Base64 to enable secure Edge Function backend upload for guest users
                 try {
                     userImageBase64 = await fileToBase64(userImageFiles[0]);
                 } catch (e) {
                     console.warn('Failed to convert image to Base64:', e);
                 }
 
-                // If user is authenticated, also attempt client-side storage upload as fallback
                 if (user?.id) {
                     try {
                         const uploadPromises = userImageFiles.map((file, idx) => 
@@ -201,6 +230,21 @@ export default function CheckoutPage() {
                     } catch (e) {
                         console.warn('Client storage upload skipped for user:', e.message);
                     }
+                }
+            }
+
+            // Handle Custom Audio Upload for Seedance 2.5
+            if (passedAudioFile) {
+                setStatusText('Uploading your background audio...');
+                try {
+                    const ext = passedAudioFile.name.split('.').pop();
+                    const path = `audio/${tempId}.${ext}`;
+                    const { data: audioData, error: audioErr } = await insforge.storage.from('template-previews').upload(path, passedAudioFile);
+                    if (!audioErr && audioData?.url) {
+                        userAudioUrl = audioData.url;
+                    }
+                } catch (err) {
+                    console.warn('Audio upload warning:', err);
                 }
             }
 
@@ -217,7 +261,11 @@ export default function CheckoutPage() {
             const orderResult = await createOrder({
                 templateId: template.id,
                 email,
-                formValues: values,
+                formValues: {
+                    ...values,
+                    seedance_user_images: seedanceUploadedSlotUrls,
+                    user_audio_url: userAudioUrl
+                },
                 paymentMethod,
                 userId: user?.id,
                 userImageUrl,

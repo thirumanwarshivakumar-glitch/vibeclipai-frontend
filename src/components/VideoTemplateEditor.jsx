@@ -198,9 +198,216 @@ function SeedanceSettings({ form, updateField, errors, fileVideoInputRef, handle
     );
 }
 
+function Seedance25Settings({
+    form,
+    updateField,
+    errors,
+    seedanceSlots,
+    updateSlot,
+    handleSlotImageUpload,
+    removeSlotImage,
+    handleAudioUpload,
+    removeAudio,
+    audioUploadProgress
+}) {
+    return (
+        <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, marginTop: 16 }}>
+            <h4 style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🎬 Seedance 2.5 Multi-Image & Audio Settings</span>
+                <span style={{ fontSize: '0.75rem', background: '#7C3AED', color: '#fff', padding: '2px 8px', borderRadius: 12 }}>
+                    480p Fixed • Up to 30s
+                </span>
+            </h4>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: 16 }}>
+                Configure up to 4 image slots. Select whether each slot is pre-uploaded by Admin or uploaded by the User during purchase. Reference slots in your prompt using <code>@Image1</code>, <code>@Image2</code>, <code>@Image3</code>, <code>@Image4</code>.
+            </p>
+
+            <div className="form-group">
+                <label className="form-label">Video Prompt Skeleton <span className="required">*</span></label>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+                    Example: <em>"Reference @Image1 for the bride, @Image2 for the groom, and @Image3 for the floral backdrop. Generate a 30-second royal wedding invitation..."</em>
+                </p>
+                <textarea
+                    className="form-textarea"
+                    value={form.videoPromptSkeleton}
+                    onChange={(e) => updateField('videoPromptSkeleton', e.target.value)}
+                    rows={4}
+                    placeholder="Enter prompt using @Image1, @Image2, @Image3, @Image4 and {variableName}..."
+                />
+                {errors.videoPromptSkeleton && <small style={{ color: 'var(--danger)' }}>{errors.videoPromptSkeleton}</small>}
+            </div>
+
+            {/* 4 Image Slots */}
+            <div style={{ marginTop: 16, marginBottom: 16 }}>
+                <label className="form-label" style={{ fontWeight: 'bold', marginBottom: 10, display: 'block' }}>
+                    🖼️ Image Slots (Image 1, Image 2, Image 3, Image 4 - All Optional)
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
+                    {seedanceSlots.map((slot, index) => (
+                        <div key={index} style={{ border: '1px solid var(--border-color, rgba(255,255,255,0.15))', borderRadius: 8, padding: 12, background: 'rgba(255,255,255,0.03)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <label style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={slot.enabled}
+                                        onChange={(e) => updateSlot(index, 'enabled', e.target.checked)}
+                                    />
+                                    Slot {index + 1} (@Image{index + 1})
+                                </label>
+                                {slot.enabled && (
+                                    <span style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: 4, background: slot.source === 'user' ? '#3B82F6' : '#10B981', color: '#fff' }}>
+                                        {slot.source === 'user' ? 'User Upload' : 'Admin Fixed'}
+                                    </span>
+                                )}
+                            </div>
+
+                            {slot.enabled && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Slot Label / Description</label>
+                                        <input
+                                            className="form-input"
+                                            style={{ fontSize: '0.85rem', padding: '4px 8px' }}
+                                            placeholder={`e.g. ${index === 0 ? 'Main Character / Bride' : index === 1 ? 'Groom / Second Person' : index === 2 ? 'Scene Background' : 'Prop / Frame'}`}
+                                            value={slot.label || ''}
+                                            onChange={(e) => updateSlot(index, 'label', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Uploaded by:</label>
+                                        <div style={{ display: 'flex', gap: 12 }}>
+                                            <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                                                <input
+                                                    type="radio"
+                                                    name={`slot_source_${index}`}
+                                                    value="user"
+                                                    checked={slot.source === 'user'}
+                                                    onChange={() => updateSlot(index, 'source', 'user')}
+                                                />
+                                                Customer (User)
+                                            </label>
+                                            <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                                                <input
+                                                    type="radio"
+                                                    name={`slot_source_${index}`}
+                                                    value="admin"
+                                                    checked={slot.source === 'admin'}
+                                                    onChange={() => updateSlot(index, 'source', 'admin')}
+                                                />
+                                                Admin (Template Fixed)
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {slot.source === 'admin' && (
+                                        <div style={{ marginTop: 4 }}>
+                                            {slot.url ? (
+                                                <div>
+                                                    <img src={slot.url} alt={`Slot ${index + 1}`} style={{ height: 60, width: 60, objectFit: 'cover', borderRadius: 6, display: 'block', border: '1px solid #7C3AED', marginBottom: 4 }} />
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-danger"
+                                                        style={{ padding: '1px 6px', fontSize: '0.75rem' }}
+                                                        onClick={() => removeSlotImage(index)}
+                                                    >
+                                                        Remove Image
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        style={{ fontSize: '0.8rem' }}
+                                                        onChange={(e) => handleSlotImageUpload(e, index)}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Audio Settings */}
+            <div style={{ borderTop: '1px solid var(--border-color, rgba(255,255,255,0.1))', paddingTop: 14, marginTop: 14 }}>
+                <label className="form-label" style={{ fontWeight: 'bold', marginBottom: 8, display: 'block' }}>
+                    🎵 Audio & Sound Settings
+                </label>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={form.allowUserAudioUpload || false}
+                            onChange={(e) => updateField('allowUserAudioUpload', e.target.checked)}
+                        />
+                        Allow Customer to Upload Custom Background Audio (MP3 / WAV)?
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={form.generateAudio !== false}
+                            onChange={(e) => updateField('generateAudio', e.target.checked)}
+                        />
+                        Enable AI Sound Generation (Synchronized effects)?
+                    </label>
+
+                    <div style={{ marginTop: 4 }}>
+                        <label className="form-label" style={{ fontSize: '0.85rem' }}>Admin Default Audio (Optional Template Soundtrack)</label>
+                        {form.referenceAudioUrl ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <audio src={form.referenceAudioUrl} controls style={{ height: 36, maxWidth: 280 }} />
+                                <button type="button" className="btn btn-sm btn-danger" onClick={removeAudio}>Remove Audio</button>
+                            </div>
+                        ) : (
+                            <div>
+                                <input type="file" accept="audio/mpeg,audio/wav,audio/aac,audio/ogg" onChange={handleAudioUpload} style={{ fontSize: '0.85rem' }} />
+                                {audioUploadProgress && <small style={{ display: 'block', marginTop: 4 }}>{audioUploadProgress}</small>}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function VideoTemplateEditor({ template, onSave, onClose }) {
     // Filter to only show video models
     const availableModels = Object.entries(AI_MODELS).filter(([_, config]) => config.category === 'video');
+
+    const parseInitialData = () => {
+        let initialSlots = [
+            { slot: 1, enabled: true, label: 'Main Subject / Bride', source: 'user', url: '' },
+            { slot: 2, enabled: false, label: 'Second Person / Groom', source: 'user', url: '' },
+            { slot: 3, enabled: false, label: 'Scene / Background', source: 'admin', url: '' },
+            { slot: 4, enabled: false, label: 'Frame / Prop', source: 'admin', url: '' },
+        ];
+        let initialAudio = {
+            allow_user_audio_upload: false,
+            reference_audio_url: '',
+            generate_audio: true
+        };
+
+        const refData = template?.reference_images || template?.seedance_slots;
+        if (Array.isArray(refData) && refData.length > 0) {
+            initialSlots = refData;
+        } else if (refData && typeof refData === 'object') {
+            if (Array.isArray(refData.slots)) initialSlots = refData.slots;
+            if (refData.audio) initialAudio = { ...initialAudio, ...refData.audio };
+        }
+        return { initialSlots, initialAudio };
+    };
+
+    const { initialSlots, initialAudio } = parseInitialData();
+    const [seedanceSlots, setSeedanceSlots] = useState(initialSlots);
+    const [audioUploadProgress, setAudioUploadProgress] = useState('');
 
     const [form, setForm] = useState(
         template
@@ -212,12 +419,15 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 templateType: 'video',
                 allowUserImageUpload: template.allow_user_image_upload ?? template.allowUserImageUpload ?? false,
                 allowUserVideoUpload: template.allow_user_video_upload ?? template.allowUserVideoUpload ?? false,
+                allowUserAudioUpload: initialAudio.allow_user_audio_upload ?? template.allow_user_audio_upload ?? false,
+                generateAudio: initialAudio.generate_audio ?? template.generate_audio ?? true,
                 maxUserUploads: template.max_user_uploads ?? template.maxUserUploads ?? 1,
                 imagePromptSkeleton: template.imagePromptSkeleton || template.image_prompt_skeleton || '',
                 videoPromptSkeleton: template.videoPromptSkeleton || template.video_prompt_skeleton || '',
                 captionSkeleton: template.caption_skeleton || template.captionSkeleton || '',
                 referenceImageUrl: template.reference_image_url || template.referenceImageUrl || '',
                 referenceVideoUrl: template.reference_video_url || template.referenceVideoUrl || '',
+                referenceAudioUrl: initialAudio.reference_audio_url || template.reference_audio_url || '',
                 inputSchema: template.inputSchema || template.input_schema || [{ ...emptyField }],
                 isFavorite: template.is_favorite ?? template.isFavorite ?? false,
             }
@@ -229,12 +439,15 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 templateType: 'video',
                 allowUserImageUpload: false,
                 allowUserVideoUpload: false,
+                allowUserAudioUpload: false,
+                generateAudio: true,
                 maxUserUploads: 1,
                 imagePromptSkeleton: '',
                 videoPromptSkeleton: '',
                 captionSkeleton: '',
                 referenceImageUrl: '',
                 referenceVideoUrl: '',
+                referenceAudioUrl: '',
                 inputSchema: [{ ...emptyField }],
                 isFavorite: false,
             }
@@ -253,10 +466,51 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
     const [aiModel, setAiModel] = useState(template?.ai_model || availableModels[0][0]);
     const [generationMode, setGenerationMode] = useState(template?.generation_mode || AI_MODELS[aiModel]?.modes[0]?.toLowerCase().replace(/ /g, '-') || 'text-to-video');
     const [defaultAspectRatio, setDefaultAspectRatio] = useState(template?.default_aspect_ratio || AI_MODELS[aiModel]?.aspectRatios[0] || '16:9');
-    
     const [videoDuration, setVideoDuration] = useState(template?.video_duration || '5');
     const [videoFps, setVideoFps] = useState(template?.video_fps || '24');
     const [currency, setCurrency] = useState(template?.currency || 'INR');
+    
+    const updateSlot = (index, key, value) => {
+        const updated = [...seedanceSlots];
+        updated[index] = { ...updated[index], [key]: value };
+        setSeedanceSlots(updated);
+    };
+
+    const handleSlotImageUpload = async (e, index) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const ext = file.name.split('.').pop();
+            const templateId = template?.id || 'new-' + Date.now();
+            const path = `${templateId}/seedance-slot-${index + 1}.${ext}`;
+            const { data, error } = await insforge.storage.from('template-previews').upload(path, file);
+            if (error) throw new Error(error.message);
+            updateSlot(index, 'url', data.url);
+        } catch (err) {
+            alert('Slot image upload failed: ' + err.message);
+        }
+    };
+
+    const removeSlotImage = (index) => updateSlot(index, 'url', '');
+
+    const handleAudioUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setAudioUploadProgress('Uploading audio...');
+        try {
+            const ext = file.name.split('.').pop();
+            const templateId = template?.id || 'new-' + Date.now();
+            const path = `${templateId}/template-audio.${ext}`;
+            const { data, error } = await insforge.storage.from('template-previews').upload(path, file);
+            if (error) throw new Error(error.message);
+            updateField('referenceAudioUrl', data.url);
+            setAudioUploadProgress('');
+        } catch (err) {
+            setAudioUploadProgress('❌ Audio upload failed: ' + err.message);
+        }
+    };
+
+    const removeAudio = () => updateField('referenceAudioUrl', '');
 
     const handleAiModelChange = (newModel) => {
         setAiModel(newModel);
@@ -264,6 +518,9 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
         const firstMode = modelConfig.modes[0]?.toLowerCase().replace(/ /g, '-') || '';
         setGenerationMode(firstMode);
         setDefaultAspectRatio(modelConfig.aspectRatios[0] || '');
+        if (newModel === 'seedance_2_5_v2') {
+            setVideoDuration('15');
+        }
     };
 
     const updateField = (key, value) => {
@@ -369,18 +626,33 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 templateType,
                 allowUserImageUpload,
                 allowUserVideoUpload,
+                allowUserAudioUpload,
+                generateAudio,
                 maxUserUploads,
                 imagePromptSkeleton,
                 videoPromptSkeleton,
                 captionSkeleton,
                 referenceImageUrl,
                 referenceVideoUrl,
+                referenceAudioUrl,
                 inputSchema,
                 isFavorite,
                 previewVideoUrl,
                 tags,
                 ...restForm
             } = form;
+
+            const isSeedance25 = aiModel === 'seedance_2_5_v2' || AI_MODELS[aiModel]?.workflow === 'seedance_2_5';
+
+            // Encapsulate Seedance 2.5 slots and audio inside reference_images JSONB
+            const referenceImagesPayload = isSeedance25 ? {
+                slots: seedanceSlots,
+                audio: {
+                    allow_user_audio_upload: allowUserAudioUpload,
+                    reference_audio_url: referenceAudioUrl,
+                    generate_audio: generateAudio
+                }
+            } : undefined;
 
             onSave({
                 ...restForm,
@@ -395,11 +667,12 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                 video_duration: videoDuration,
                 video_fps: videoFps,
                 currency: currency,
-                allow_user_image_upload: allowUserImageUpload,
+                allow_user_image_upload: isSeedance25 ? seedanceSlots.some(s => s.enabled && s.source === 'user') : allowUserImageUpload,
                 allow_user_video_upload: allowUserVideoUpload,
-                max_user_uploads: Number(maxUserUploads),
+                max_user_uploads: isSeedance25 ? seedanceSlots.filter(s => s.enabled && s.source === 'user').length : Number(maxUserUploads),
                 reference_video_url: referenceVideoUrl,
-                reference_image_url: referenceImageUrl,
+                reference_image_url: isSeedance25 ? '' : referenceImageUrl,
+                reference_images: referenceImagesPayload,
                 image_prompt_skeleton: imagePromptSkeleton,
                 video_prompt_skeleton: videoPromptSkeleton,
                 caption_skeleton: captionSkeleton,
@@ -449,6 +722,20 @@ export default function VideoTemplateEditor({ template, onSave, onClose }) {
                     {workflow === 'veo_two_step' && <VeoSettings form={form} updateField={updateField} errors={errors} fileInputRef={fileInputRef} handleImageUpload={handleImageUpload} removeReferenceImage={removeReferenceImage} uploadProgress={uploadProgress} />}
                     {workflow === 'kling_motion' && <KlingSettings form={form} updateField={updateField} errors={errors} fileVideoInputRef={fileVideoInputRef} handleReferenceVideoUpload={handleReferenceVideoUpload} removeReferenceVideo={removeReferenceVideo} videoUploadProgress={videoUploadProgress} fileInputRef={fileInputRef} handleImageUpload={handleImageUpload} removeReferenceImage={removeReferenceImage} uploadProgress={uploadProgress} />}
                     {workflow === 'seedance_motion' && <SeedanceSettings form={form} updateField={updateField} errors={errors} fileVideoInputRef={fileVideoInputRef} handleReferenceVideoUpload={handleReferenceVideoUpload} removeReferenceVideo={removeReferenceVideo} videoUploadProgress={videoUploadProgress} fileInputRef={fileInputRef} handleImageUpload={handleImageUpload} removeReferenceImage={removeReferenceImage} uploadProgress={uploadProgress} />}
+                    {workflow === 'seedance_2_5' && (
+                        <Seedance25Settings
+                            form={form}
+                            updateField={updateField}
+                            errors={errors}
+                            seedanceSlots={seedanceSlots}
+                            updateSlot={updateSlot}
+                            handleSlotImageUpload={handleSlotImageUpload}
+                            removeSlotImage={removeSlotImage}
+                            handleAudioUpload={handleAudioUpload}
+                            removeAudio={removeAudio}
+                            audioUploadProgress={audioUploadProgress}
+                        />
+                    )}
 
                     {/* Video Output Settings */}
                     <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>

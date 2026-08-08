@@ -167,7 +167,7 @@ export default async function (req) {
                 
                 // For Seedance and Kling V2, the uploaded images/videos are used directly for generation.
                 // We do NOT want to pass them through Nano Banana first.
-                const isDirectVideoModel = aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
+                const isDirectVideoModel = aiModel === 'seedance_2_5_v2' || aiModel === 'seedance_2_fast_v2' || aiModel === 'kling_3_0_v2';
 
                 // We generate an intermediate image for review if it's an image template,
                 // OR if there's a reference image AND it's not a direct video model
@@ -201,7 +201,7 @@ export default async function (req) {
                     if (type === 'video') {
                         if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
                         if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                        if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                        if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
                         return 'generate-video';
                     }
                     return 'generate-video';
@@ -247,7 +247,7 @@ export default async function (req) {
                     } else {
                         if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
                         if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                        if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                        if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
                         return 'generate-video';
                     }
                 };
@@ -279,16 +279,24 @@ export default async function (req) {
                     .eq('id', orderId)
                     .single();
 
-                const isImageOnly = order?.template_type === 'image';
+                if (!order) {
+                    return new Response(JSON.stringify({ error: 'Order not found' }), {
+                        status: 404,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    });
+                }
+
+                const isImageOnly = order.template_type === 'image';
+                const finalStatus = isImageOnly ? 'completed' : 'generating';
 
                 if (confirmDecision === 'approve') {
-                    const finalStatus = isImageOnly ? 'completed' : 'generating';
                     await client.database
                         .from('orders')
                         .update({
                             generation_status: finalStatus,
+                            image_confirmation_status: 'approved',
+                            video_url: isImageOnly ? order.generated_image_url : null,
                             updated_at: new Date().toISOString(),
-                            video_url: isImageOnly ? order?.generated_image_url : null,
                         })
                         .eq('id', orderId);
 
@@ -300,7 +308,7 @@ export default async function (req) {
                                 if (!currentModel || currentModel === 'veo_3_1' || currentModel === 'nano_banana_pro' || currentModel === 'kling_3_0') return 'generate-video';
                                 if (currentModel === 'veo_3_1_v2') return 'generate-video-veo-v2';
                                 if (currentModel === 'kling_3_0_v2') return 'generate-video-kling-v2';
-                                if (currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
+                                if (currentModel === 'seedance_2_5_v2' || currentModel === 'seedance_2_fast_v2') return 'generate-video-seedance-v2';
                                 return 'generate-video';
                             };
                             const targetFunc = getTargetFunction(aiModel);

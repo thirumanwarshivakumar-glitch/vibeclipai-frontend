@@ -50,6 +50,14 @@ export const AI_MODELS = {
         category: 'video',
         workflow: 'seedance_motion'
     },
+    seedance_2_5_v2: {
+        label: 'Seedance 2.5 (ByteDance / Kie.ai) [v2]',
+        modes: ['Seedance 2.5 (4 Slots, Audio, 30s, 480p)'],
+        aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', 'adaptive'],
+        maxImages: 4,
+        category: 'video',
+        workflow: 'seedance_2_5'
+    },
     nano_banana_pro_v2: {
         label: 'Nano Banana Pro (Kie.ai) [v2]',
         modes: ['Text to Image', 'Image to Image'],

@@ -148,6 +148,9 @@ export async function createTemplate(templateData) {
             allow_user_image_upload: templateData.allow_user_image_upload !== undefined ? templateData.allow_user_image_upload : false,
             allow_user_video_upload: templateData.allow_user_video_upload !== undefined ? templateData.allow_user_video_upload : false,
             reference_video_url: templateData.reference_video_url || '',
+            caption_skeleton: templateData.caption_skeleton || templateData.captionSkeleton || '',
+            category: templateData.category || 'General',
+            preview_video_url: templateData.preview_video_url || templateData.previewVideoUrl || '',
         }])
         .select()
         .single();
@@ -164,12 +167,13 @@ export async function updateTemplate(id, templateData) {
     // Map camelCase to snake_case if necessary, otherwise pass through
     const updatePayload = { ...templateData, updated_at: new Date().toISOString() };
     
-    // Explicitly handle known camelCase fields for safety/consistency if needed,
-    // but the object spread handles already-correctly-named fields.
+    // Explicitly handle known camelCase fields for safety/consistency if needed
     if (templateData.imagePromptSkeleton !== undefined) updatePayload.image_prompt_skeleton = templateData.imagePromptSkeleton;
     if (templateData.videoPromptSkeleton !== undefined) updatePayload.video_prompt_skeleton = templateData.videoPromptSkeleton;
+    if (templateData.captionSkeleton !== undefined) updatePayload.caption_skeleton = templateData.captionSkeleton;
     if (templateData.inputSchema !== undefined) updatePayload.input_schema = templateData.inputSchema;
     if (templateData.referenceImageUrl !== undefined) updatePayload.reference_image_url = templateData.referenceImageUrl;
+    if (templateData.previewVideoUrl !== undefined) updatePayload.preview_video_url = templateData.previewVideoUrl;
     if (templateData.templateType !== undefined) updatePayload.template_type = templateData.templateType;
 
     // New fields (already snake_case from TemplateEditor, but ensure they pass through)
@@ -190,17 +194,27 @@ export async function updateTemplate(id, templateData) {
     if (templateData.is_favorite_status !== undefined) updatePayload.is_favorite = templateData.is_favorite_status;
     if (templateData.isFavorite !== undefined) updatePayload.is_favorite = templateData.isFavorite;
 
-    // Clean up all possible camelCase and internal keys that shouldn't be sent to DB
+    // Clean up all non-schema keys so PostgREST never errors
     delete updatePayload.imagePromptSkeleton;
     delete updatePayload.videoPromptSkeleton;
+    delete updatePayload.captionSkeleton;
     delete updatePayload.inputSchema;
     delete updatePayload.referenceImageUrl;
+    delete updatePayload.previewVideoUrl;
     delete updatePayload.templateType;
     delete updatePayload.allowUserImageUpload;
     delete updatePayload.allowUserVideoUpload;
+    delete updatePayload.allowUserAudioUpload;
+    delete updatePayload.allow_user_audio_upload;
+    delete updatePayload.referenceAudioUrl;
+    delete updatePayload.reference_audio_url;
+    delete updatePayload.generateAudio;
+    delete updatePayload.generate_audio;
+    delete updatePayload.seedance_slots;
+    delete updatePayload.seedanceSlots;
     delete updatePayload.referenceVideoUrl;
     delete updatePayload.isFavorite;
-    delete updatePayload.referenceImages; // This is stringified in TemplateEditor, so it needs to be the snake_case version only
+    delete updatePayload.referenceImages;
     delete updatePayload.id;
 
     const { data, error } = await insforge.database
@@ -496,7 +510,7 @@ export async function pollGenerationStatus(orderId, type) {
     } else {
         if (aiModel === 'veo_3_1_v2') targetFunc = 'generate-video-veo-v2';
         else if (aiModel === 'kling_3_0_v2') targetFunc = 'generate-video-kling-v2';
-        else if (aiModel === 'seedance_2_fast_v2') targetFunc = 'generate-video-seedance-v2';
+        else if (aiModel === 'seedance_2_fast_v2' || aiModel === 'seedance_2_5_v2') targetFunc = 'generate-video-seedance-v2';
     }
     
     console.log(`[API] Routing poll to ${targetFunc}...`);
