@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function PrivacyPage() {
     return (
         <div className="page" id="privacy-page">
+            <SEO
+                title="Privacy Policy & Data Protection"
+                description="Understand how VibeClips AI protects your personal information, uploaded media, and transaction security."
+                canonical="https://vibeclipsai.com/privacy"
+            />
             <section className="section" style={{ paddingTop: '120px', paddingBottom: '100px' }}>
                 <div className="container" style={{ maxWidth: '800px' }}>
                     <h1 className="section-title" style={{ textAlign: 'left', marginBottom: '40px' }}>Privacy Policy</h1>

@@ -1,5 +1,6 @@
 import { useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
+import SEO from '../components/SEO';
 import { getOrderStatus, confirmPayment, confirmImage, resendEmail } from '../lib/api';
 import { generateCaption } from '../lib/captionEngine';
 import { useNativeShare } from '../hooks/useNativeShare';
@@ -271,6 +272,10 @@ export default function SuccessPage() {
 
     return (
         <div className="page" id="success-page">
+            <SEO
+                title="Order Status"
+                noindex={true}
+            />
             <div className="success-page-content glass-panel" style={{ borderRadius: 'var(--radius-xl)' }}>
                 <div className="success-icon animate-fade-in-up">🎉</div>
                 <h1 className="success-title animate-fade-in-up" style={{ animationDelay: '0.1s' }}>

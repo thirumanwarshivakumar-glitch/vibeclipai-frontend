@@ -1,8 +1,13 @@
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function MerchantDeclarationPage() {
     return (
         <div className="page" id="merchant-declaration-page">
+            <SEO
+                title="Merchant Declaration"
+                noindex={true}
+            />
             <section className="section" style={{ paddingTop: '120px', paddingBottom: '100px' }}>
                 <div className="container" style={{ maxWidth: '800px' }}>
                     <h1 className="section-title" style={{ textAlign: 'left', marginBottom: '40px' }}>Merchant Declaration</h1>

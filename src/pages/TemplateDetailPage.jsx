@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Play, Upload, X, Check, Image as ImageIcon, Video, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import FormRenderer from '../components/FormRenderer';
+import SEO from '../components/SEO';
 import { fetchTemplateById } from '../lib/api';
 import { compressImage } from '../lib/imageCompressor';
 
@@ -309,9 +310,30 @@ export default function TemplateDetailPage() {
         videoPreviewRef.current.muted = newMuted;
         setIsMuted(newMuted);
     };
+    const templateJsonLd = template ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": template.name,
+        "description": template.description || `Personalize the ${template.name} AI video template.`,
+        "image": template.preview_image || template.reference_image_url || 'https://vibeclipsai.com/mascot.png',
+        "offers": {
+            "@type": "Offer",
+            "priceCurrency": template.currency || "INR",
+            "price": String(template.price || "499"),
+            "availability": "https://schema.org/InStock",
+            "url": `https://vibeclipsai.com/template/${template.id}`
+        }
+    } : null;
 
     return (
         <div className="w-full min-h-screen pt-24 pb-24 text-white">
+            <SEO
+                title={template.name}
+                description={template.description || `Create personalized ${template.name} video with AI.`}
+                canonical={`https://vibeclipsai.com/template/${template.id}`}
+                ogImage={template.preview_image || template.reference_image_url || 'https://vibeclipsai.com/mascot.png'}
+                jsonLd={templateJsonLd}
+            />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 
                 {/* Breadcrumbs */}

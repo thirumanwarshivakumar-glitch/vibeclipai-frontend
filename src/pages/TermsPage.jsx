@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function TermsPage() {
     return (
         <div className="page" id="terms-page">
+            <SEO
+                title="Terms of Service & Usage Policy"
+                description="Read the terms and conditions governing the use of VibeClips AI video generation platform and digital deliverables."
+                canonical="https://vibeclipsai.com/terms"
+            />
             <section className="section" style={{ paddingTop: '120px', paddingBottom: '100px' }}>
                 <div className="container" style={{ maxWidth: '800px' }}>
                     <h1 className="section-title" style={{ textAlign: 'left', marginBottom: '40px' }}>Terms & Conditions</h1>

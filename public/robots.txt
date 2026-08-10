@@ -1,0 +1,23 @@
+# https://vibeclipsai.com/robots.txt
+User-agent: *
+Allow: /
+Allow: /templates
+Allow: /template/
+Allow: /terms
+Allow: /privacy
+Allow: /refund-policy
+Allow: /contact
+
+# Disallow administrative, account, and transactional checkout flows
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /orders
+Disallow: /orders/
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /success
+Disallow: /merchant-declaration
+
+# Reference XML Sitemap
+Sitemap: https://vibeclipsai.com/sitemap.xml

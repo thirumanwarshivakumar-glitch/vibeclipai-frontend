@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CreditCard, Upload, Video, X, ShieldCheck, Mail, ArrowRight, Camera } from 'lucide-react';
 import { useUser } from '@insforge/react';
+import SEO from '../components/SEO';
 import { createOrder, createStripeCheckout, uploadUserImage, uploadUserVideo, createRazorpayOrder, verifyRazorpayPayment, fileToBase64 } from '../lib/api';
 import { compressImage } from '../lib/imageCompressor';
 
@@ -346,6 +347,10 @@ export default function CheckoutPage() {
 
     return (
         <div className="w-full min-h-screen pt-24 pb-24 text-white">
+            <SEO
+                title="Checkout"
+                noindex={true}
+            />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Breadcrumbs */}
                 <motion.div 

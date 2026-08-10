@@ -1,8 +1,27 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import WelcomeEmailHandler from './components/WelcomeEmailHandler';
 import Footer from './components/Footer';
+
+// GA4 Route-Change Pageview Tracker
+function PageTracking() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      // Sanitize URL: Strip sensitive query params (e.g. orderId, tokens) from tracking
+      const cleanPath = location.pathname;
+      window.gtag('event', 'page_view', {
+        page_path: cleanPath,
+        page_title: document.title,
+        page_location: `${window.location.origin}${cleanPath}`,
+      });
+    }
+  }, [location.pathname]);
+
+  return null;
+}
 
 // Lazy-loaded page components
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -24,6 +43,7 @@ const MerchantDeclarationPage = lazy(() => import('./pages/MerchantDeclarationPa
 export default function App() {
   return (
     <BrowserRouter>
+      <PageTracking />
       <div className="noise-overlay"></div>
       <Header />
       <WelcomeEmailHandler />

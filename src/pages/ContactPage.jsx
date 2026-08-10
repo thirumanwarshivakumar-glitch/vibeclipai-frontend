@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function ContactPage() {
     return (
         <div className="page" id="contact-page">
+            <SEO
+                title="Contact Support & Customer Service"
+                description="Get in touch with the VibeClips AI support team. Inquiries regarding orders, AI video generation, and payment assistance."
+                canonical="https://vibeclipsai.com/contact"
+            />
             <section className="section" style={{ paddingTop: '120px', paddingBottom: '100px' }}>
                 <div className="container" style={{ maxWidth: '800px' }}>
                     <h1 className="section-title" style={{ textAlign: 'left', marginBottom: '40px' }}>Contact Us</h1>

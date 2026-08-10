@@ -2,6 +2,33 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchTemplates } from "../lib/api";
 import Spline from '@splinetool/react-spline';
+import SEO from '../components/SEO';
+
+const HOME_JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://vibeclipsai.com/#organization",
+      "name": "VibeClips AI",
+      "url": "https://vibeclipsai.com/",
+      "logo": "https://vibeclipsai.com/mascot.png",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "support@vibeclipai.com",
+        "contactType": "customer service",
+        "areaServed": "IN"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://vibeclipsai.com/#website",
+      "url": "https://vibeclipsai.com/",
+      "name": "VibeClips AI",
+      "publisher": { "@id": "https://vibeclipsai.com/#organization" }
+    }
+  ]
+};
 
 // ── SplineHero: loading skeleton + error boundary + demo label ──────────────
 class SplineBoundary extends React.Component {
@@ -67,6 +94,12 @@ export default function HomePage() {
 
   return (
     <div id="home-view" className="view-section active">
+      <SEO
+        title="AI Video Invitation & Celebration Generator"
+        description="Create viral AI video invitations, hero entry reels, and personalized celebration videos in minutes. Powered by ByteDance Seedance & Google Veo."
+        canonical="https://vibeclipsai.com/"
+        jsonLd={HOME_JSON_LD}
+      />
       {/* Hero */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Background orbs */}

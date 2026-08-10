@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, Filter, Video, Image as ImageIcon } from 'lucide-react';
 import TemplateCard from '../components/TemplateCard';
 import GalleryFilterBar from '../components/GalleryFilterBar';
+import SEO from '../components/SEO';
 import { fetchTemplates } from '../lib/api';
 
 export default function TemplatesPage() {
@@ -115,6 +116,11 @@ export default function TemplatesPage() {
 
     return (
         <div className="min-h-screen pt-24 pb-12 w-full text-white">
+            <SEO
+                title="AI Video & Image Templates Catalog"
+                description="Explore hundreds of trending AI video and photo templates. Personalize cinematic hero entries, name reveals, and celebration invitations instantly."
+                canonical="https://vibeclipsai.com/templates"
+            />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-8 gap-6">
                     <motion.div 
