@@ -68,9 +68,13 @@ export default async function (req) {
 
             console.log(`[GEN-VEO-V2] [LOCK ACQUIRED] Submitting Veo request...`);
 
-            const referenceImageUrl = order.reference_image_url || order.generated_image_url;
+            let referenceImageUrl = order.reference_image_url || order.generated_image_url;
+            if (referenceImageUrl && referenceImageUrl.startsWith('data:image/')) {
+                referenceImageUrl = `https://4w8g54a3.function2.insforge.app/serve-image?orderId=${orderId}&slot=1`;
+            }
             const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
 
+            const template = Array.isArray(order.templates) ? order.templates[0] : order.templates;
             const ratioRaw = order.form_values?.aspect_ratio || template?.default_aspect_ratio || '9:16';
             const cleanRatio = ratioRaw.split(' ')[0];
 
@@ -102,11 +106,21 @@ export default async function (req) {
                     return new Response(JSON.stringify({ success: true, taskId }), { status: 200, headers: corsHeaders });
                 } else {
                     const errorMsg = result.message || result.msg || 'Kie submission failure';
+                    // Reset lock if submit failed so it can be retried
+                    await client.database
+                        .from('orders')
+                        .update({ video_task_id: null })
+                        .eq('id', orderId);
                     return new Response(JSON.stringify({ error: errorMsg, details: result }), { status: 500, headers: corsHeaders });
                 }
             } catch (submitErr) {
                 console.error('[GEN-VEO-V2] Fetch Error during submit:', submitErr);
                 const msg = submitErr instanceof Error ? submitErr.message : String(submitErr);
+                // Reset lock on network error
+                await client.database
+                    .from('orders')
+                    .update({ video_task_id: null })
+                    .eq('id', orderId);
                 return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: msg }), { status: 500, headers: corsHeaders });
             }
         }

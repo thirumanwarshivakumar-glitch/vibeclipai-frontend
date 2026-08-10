@@ -69,7 +69,10 @@ export default async function (req) {
             console.log(`[GEN-KLING-V2] [LOCK ACQUIRED] Submitting Kling request...`);
 
             const motionVideoUrl = order.user_video_url || template?.reference_video_url;
-            const referenceImageUrl = order.reference_image_url || order.generated_image_url;
+            let referenceImageUrl = order.reference_image_url || order.generated_image_url;
+            if (referenceImageUrl && referenceImageUrl.startsWith('data:image/')) {
+                referenceImageUrl = `https://4w8g54a3.function2.insforge.app/serve-image?orderId=${orderId}&slot=1`;
+            }
             const fullPrompt = order.constructed_video_prompt || order.constructed_prompt || "Generation";
 
             const refImageUrls = referenceImageUrl ? referenceImageUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -106,11 +109,21 @@ export default async function (req) {
                     return new Response(JSON.stringify({ success: true, taskId }), { status: 200, headers: corsHeaders });
                 } else {
                     const errorMsg = result.message || result.msg || 'Kling submission failure';
+                    // Reset lock if submit failed so it can be retried
+                    await client.database
+                        .from('orders')
+                        .update({ video_task_id: null })
+                        .eq('id', orderId);
                     return new Response(JSON.stringify({ error: errorMsg, details: result }), { status: 500, headers: corsHeaders });
                 }
             } catch (submitErr) {
                 console.error('[GEN-KLING-V2] Fetch Error during submit:', submitErr);
                 const msg = submitErr instanceof Error ? submitErr.message : String(submitErr);
+                // Reset lock on network error
+                await client.database
+                    .from('orders')
+                    .update({ video_task_id: null })
+                    .eq('id', orderId);
                 return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: msg }), { status: 500, headers: corsHeaders });
             }
         }

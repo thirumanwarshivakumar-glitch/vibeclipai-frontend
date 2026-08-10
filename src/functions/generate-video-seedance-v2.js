@@ -95,7 +95,9 @@ export default async function (req) {
                 const audioConfig = !Array.isArray(refData) && refData?.audio ? refData.audio : {};
 
                 defaultAudioUrl = audioConfig.reference_audio_url || template?.reference_audio_url || '';
-                syncAudio = audioConfig.generate_audio ?? (template?.generate_audio !== false);
+                // Only generate audio if a reference audio file is provided, preventing AI audio copyright audit failures
+                const hasRefAudio = Boolean(defaultAudioUrl || order.form_values?.user_audio_url || order.reference_audio_url);
+                syncAudio = hasRefAudio && (audioConfig.generate_audio !== false);
 
                 const userUploadedSlots = order.form_values?.seedance_user_images || {};
 
@@ -103,7 +105,11 @@ export default async function (req) {
                     slots.forEach((s) => {
                         if (s && s.enabled) {
                             if (s.source === 'user') {
-                                const userUrl = userUploadedSlots[s.slot] || userUploadedSlots[String(s.slot)];
+                                const slotKey = String(s.slot);
+                                let userUrl = userUploadedSlots[s.slot] || userUploadedSlots[slotKey];
+                                if (userUrl && userUrl.startsWith('data:image/')) {
+                                    userUrl = `https://4w8g54a3.function2.insforge.app/serve-image?orderId=${orderId}&slot=${slotKey}`;
+                                }
                                 if (userUrl) refImageUrls.push(userUrl);
                             } else if (s.source === 'admin' && s.url) {
                                 refImageUrls.push(s.url);
@@ -115,7 +121,10 @@ export default async function (req) {
 
             // Fallback to reference_image_url if slots were not used or empty
             if (refImageUrls.length === 0) {
-                const referenceImageUrl = order.reference_image_url || order.generated_image_url || template?.reference_image_url;
+                let referenceImageUrl = order.reference_image_url || order.generated_image_url || template?.reference_image_url;
+                if (referenceImageUrl && referenceImageUrl.startsWith('data:image/')) {
+                    referenceImageUrl = `https://4w8g54a3.function2.insforge.app/serve-image?orderId=${orderId}&slot=1`;
+                }
                 refImageUrls = referenceImageUrl ? referenceImageUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
             }
 
@@ -163,11 +172,21 @@ export default async function (req) {
                     return new Response(JSON.stringify({ success: true, taskId }), { status: 200, headers: corsHeaders });
                 } else {
                     const errorMsg = result.message || result.msg || 'Seedance submission failure';
+                    // Reset lock if submit failed so it can be retried
+                    await client.database
+                        .from('orders')
+                        .update({ video_task_id: null })
+                        .eq('id', orderId);
                     return new Response(JSON.stringify({ error: errorMsg, details: result }), { status: 500, headers: corsHeaders });
                 }
             } catch (submitErr) {
                 console.error('[GEN-SEEDANCE-V2] Fetch Error during submit:', submitErr);
                 const msg = submitErr instanceof Error ? submitErr.message : String(submitErr);
+                // Reset lock on network error
+                await client.database
+                    .from('orders')
+                    .update({ video_task_id: null })
+                    .eq('id', orderId);
                 return new Response(JSON.stringify({ error: 'Failed to connect to Kie API', details: msg }), { status: 500, headers: corsHeaders });
             }
         }
