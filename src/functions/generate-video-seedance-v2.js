@@ -95,9 +95,14 @@ export default async function (req) {
                 const audioConfig = !Array.isArray(refData) && refData?.audio ? refData.audio : {};
 
                 defaultAudioUrl = audioConfig.reference_audio_url || template?.reference_audio_url || '';
-                // Only generate audio if a reference audio file is provided, preventing AI audio copyright audit failures
-                const hasRefAudio = Boolean(defaultAudioUrl || order.form_values?.user_audio_url || order.reference_audio_url);
-                syncAudio = hasRefAudio && (audioConfig.generate_audio !== false);
+                // Respect template settings for audio generation
+                if (audioConfig.generate_audio !== undefined) {
+                    syncAudio = Boolean(audioConfig.generate_audio);
+                } else if (template?.generate_audio !== undefined) {
+                    syncAudio = Boolean(template?.generate_audio);
+                } else {
+                    syncAudio = true;
+                }
 
                 const userUploadedSlots = order.form_values?.seedance_user_images || {};
 
