@@ -77,12 +77,12 @@ export default function TemplateDetailPage() {
         template?.name?.toLowerCase().includes('kling') ||
         template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa';
 
-    const isSeedance25 = 
+    const isSeedance25 = !isImage && (
         template?.ai_model?.toLowerCase().includes('seedance_2_5') || 
         template?.aiModel?.toLowerCase().includes('seedance_2_5') ||
-        Array.isArray(template?.seedance_slots) ||
-        Array.isArray(template?.reference_images) ||
-        (template?.reference_images && typeof template.reference_images === 'object' && template.reference_images.slots);
+        (Array.isArray(template?.seedance_slots) && template.seedance_slots.length > 0) ||
+        (template?.reference_images && typeof template.reference_images === 'object' && Array.isArray(template.reference_images.slots) && template.reference_images.slots.length > 0)
+    );
 
     const refImagesData = template?.reference_images || template?.seedance_slots;
     const seedanceSlots = Array.isArray(refImagesData) 
@@ -107,7 +107,7 @@ export default function TemplateDetailPage() {
     const isSquare11 = rawRatio.includes('1:1') || rawRatio.includes('1/1') || tags.some(t => String(t).includes('1:1') || String(t).includes('1/1'));
     const mediaAspectRatio = isImage ? '4/5' : (isVertical916 ? '9/16' : (isSquare11 ? '1/1' : '16/9'));
 
-    const requiresUserImage = !isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl);
+    const requiresUserImage = isImage || (!isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl));
     const requiresUserVideo = !!(template?.allow_user_video_upload);
     const inputSchema = (template.input_schema || []).filter(f => f && f.key && String(f.key).trim() !== '');
     const maxUploads = template?.max_user_uploads || template?.maxUserUploads || 1;

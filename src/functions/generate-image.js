@@ -65,6 +65,25 @@ export default async function (req) {
                 });
             }
 
+            const referenceImageUrl = order.reference_image_url;
+
+            if (!referenceImageUrl) {
+                await client.database
+                    .from('orders')
+                    .update({
+                        generation_status: 'failed',
+                        failure_reason: 'No reference image found for generation',
+                        image_task_id: null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', orderId);
+
+                return new Response(JSON.stringify({ error: 'No reference image found for image generation' }), {
+                    status: 400,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+
             // Lock submission
             await client.database
                 .from('orders')
@@ -75,14 +94,6 @@ export default async function (req) {
                 .eq('id', orderId);
 
             console.log('Submitting image generation to Kie.ai Nano Banana for order:', orderId);
-            const referenceImageUrl = order.reference_image_url;
-
-            if (!referenceImageUrl) {
-                return new Response(JSON.stringify({ error: 'No reference image found for image generation' }), {
-                    status: 400,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                });
-            }
 
             // Sanitize prompt
             let cleanPrompt = (order.constructed_image_prompt || order.constructed_prompt || 'Enhance the image')
@@ -145,27 +156,37 @@ export default async function (req) {
             const taskId = order.image_task_id;
             
             if (taskId === 'Submitting...') {
-                return new Response(JSON.stringify({ status: 'generating' }), {
-                    status: 200,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                });
+                const updatedAt = new Date(order.updated_at || order.created_at).getTime();
+                const now = Date.now();
+                if (now - updatedAt <= 45000) {
+                    return new Response(JSON.stringify({ status: 'generating' }), {
+                        status: 200,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    });
+                }
+                console.log(`Lock timeout for order ${orderId}. Attempting self-heal.`);
             }
 
-            // Self-heal: If it's null, the original trigger failed/timed out! Resubmit it inline locally.
-            if (!taskId) {
-                console.log(`Self-healing: order ${orderId} has no image_task_id. Resubmitting inline!`);
+            // Self-heal: If it's null (or timed out 'Submitting...'), the original trigger failed/timed out! Resubmit it inline locally.
+            if (!taskId || taskId === 'Submitting...') {
+                console.log(`Self-healing: order ${orderId} has no valid image_task_id. Resubmitting inline!`);
                 
+                const referenceImageUrl = order.reference_image_url;
+                if (!referenceImageUrl) {
+                    await client.database.from('orders').update({
+                        generation_status: 'failed',
+                        failure_reason: 'No reference image found',
+                        image_task_id: null,
+                        updated_at: new Date().toISOString()
+                    }).eq('id', orderId);
+                    return new Response(JSON.stringify({ error: 'No reference image found' }), { status: 400, headers: corsHeaders });
+                }
+
                 // Update DB to say we're trying again
                 await client.database
                     .from('orders')
                     .update({ image_task_id: 'Submitting...', updated_at: new Date().toISOString() })
                     .eq('id', orderId);
-
-                // Run submit logic identically down to the API
-                const referenceImageUrl = order.reference_image_url;
-                if (!referenceImageUrl) {
-                    return new Response(JSON.stringify({ error: 'No reference image found' }), { status: 400, headers: corsHeaders });
-                }
 
                 let cleanPrompt = (order.constructed_image_prompt || order.constructed_prompt || 'Enhance the image')
                     .replace(/[\u201C\u201D]/g, '').replace(/[\u2018\u2019]/g, '').replace(/["']/g, '').replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();

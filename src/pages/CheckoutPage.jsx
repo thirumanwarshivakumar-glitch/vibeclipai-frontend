@@ -46,11 +46,13 @@ export default function CheckoutPage() {
     const [videoUploadError, setVideoUploadError] = useState('');
     const userVideoRef = useRef(null);
 
-    const isSeedance25 = 
+    const isImageTemplate = template?.template_type === 'image' || template?.templateType === 'image';
+    const isSeedance25 = !isImageTemplate && (
         template?.ai_model?.toLowerCase().includes('seedance_2_5') || 
         template?.aiModel?.toLowerCase().includes('seedance_2_5') ||
-        Array.isArray(template?.seedance_slots) ||
-        Array.isArray(template?.reference_images);
+        (Array.isArray(template?.seedance_slots) && template.seedance_slots.length > 0) ||
+        (template?.reference_images && typeof template.reference_images === 'object' && Array.isArray(template.reference_images.slots) && template.reference_images.slots.length > 0)
+    );
 
     const isKlingMotionControl = 
         template?.ai_model?.toLowerCase().includes('kling') || 
@@ -58,7 +60,7 @@ export default function CheckoutPage() {
         template?.name?.toLowerCase().includes('kling') ||
         template?.id === 'b61dbd8e-2850-4fc8-afcb-f7e80451c7aa'; 
         
-    const requiresUserImage = !isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl);
+    const requiresUserImage = isImageTemplate || (!isSeedance25 && (!!(template?.allow_user_image_upload) || isKlingMotionControl));
     const requiresUserVideo = !!(template?.allow_user_video_upload);
 
     useEffect(() => {
@@ -221,16 +223,14 @@ export default function CheckoutPage() {
                     console.warn('Failed to convert image to Base64:', e);
                 }
 
-                if (user?.id) {
-                    try {
-                        const uploadPromises = userImageFiles.map((file, idx) => 
-                            uploadUserImage(file, `${tempId}-${idx}`)
-                        );
-                        const urls = await Promise.all(uploadPromises);
-                        userImageUrl = urls.join(',');
-                    } catch (e) {
-                        console.warn('Client storage upload skipped for user:', e.message);
-                    }
+                try {
+                    const uploadPromises = userImageFiles.map((file, idx) => 
+                        uploadUserImage(file, `${tempId}-${idx}`)
+                    );
+                    const urls = await Promise.all(uploadPromises);
+                    userImageUrl = urls.filter(Boolean).join(',');
+                } catch (e) {
+                    console.warn('Client storage upload skipped for user:', e.message);
                 }
             }
 
@@ -249,7 +249,7 @@ export default function CheckoutPage() {
                 }
             }
 
-            if (userVideoFile && user?.id) {
+            if (userVideoFile) {
                 setStatusText('Uploading your motion video...');
                 try {
                     userVideoUrl = await uploadUserVideo(userVideoFile, tempId);
